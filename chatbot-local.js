@@ -324,10 +324,32 @@ class ChatBot extends HTMLElement {
     }
 
     appendMessage(sender, text) {
-        const messagesDiv = this.shadowRoot.querySelector('#messages');
-        const messageElem = document.createElement('div');
+        // const messagesDiv = this.shadowRoot.querySelector('#messages');
+        // const messageElem = document.createElement('div');
+        // messageElem.className = `message message-${sender.toLowerCase()}`;
+        // messageElem.innerHTML = `<div class="message-bubble">${text}</div>`;
+        // messagesDiv.appendChild(messageElem);
+        // messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+        const messagesDiv = this.shadowRoot.querySelector("#messages");
+        const messageElem = document.createElement("div");
         messageElem.className = `message message-${sender.toLowerCase()}`;
-        messageElem.innerHTML = `<div class="message-bubble">${text}</div>`;
+
+        // Xử lý chuỗi Markdown
+        let formattedText = text
+            .replace(/\*\*(.*?)\*\*/g, "$1") // Loại bỏ **...** (in đậm)
+            .replace(/\*(.*?)\*/g, "$1") // Loại bỏ *...* (danh sách hoặc in nghiêng)
+            .replace(/^\s*\*\s*/gm, ""); // Loại bỏ * ở đầu dòng
+
+        // Tách chuỗi thành các dòng
+        const lines = formattedText.split(" * ").map((line) => line.trim());
+
+        // Tạo HTML cho từng dòng
+        const bubbleContent = lines
+            .map((line) => `<div>${line}</div>`)
+            .join("");
+
+        messageElem.innerHTML = `<div class="message-bubble">${bubbleContent}</div>`;
         messagesDiv.appendChild(messageElem);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
