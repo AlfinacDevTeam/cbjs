@@ -256,7 +256,7 @@ class ChatBot extends HTMLElement {
                 </div>
                 </div>
                 <div class="chat-input">
-                    <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 tù)..." />
+                    <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 từ)..." />
                     <button id="sendBtn">Gửi</button>
                 </div>
             </div>
