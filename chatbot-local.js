@@ -238,7 +238,7 @@ class ChatBot extends HTMLElement {
                         border-radius: 0;
                     }
                     .action-button {
-                        bottom: 26px;
+                        bottom: 216px;
                         right: 16px;
                     }
                 }
