@@ -31,7 +31,7 @@ class ChatBot extends HTMLElement {
 
                 .action-button {
                     position: fixed;
-                    bottom: 20px;
+                    bottom: 30px;
                     right: var(--position-right);
                     width: 50px;
                     height: 50px;
@@ -238,7 +238,7 @@ class ChatBot extends HTMLElement {
                         border-radius: 0;
                     }
                     .action-button {
-                        bottom: 216px;
+                        bottom: 26px;
                         right: 16px;
                     }
                 }
