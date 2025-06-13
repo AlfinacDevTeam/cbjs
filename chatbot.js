@@ -4,9 +4,13 @@ class ChatBot extends HTMLElement {
     }
 
     connectedCallback() {
-        this.attachShadow({ mode: 'open' });
-        this.apiKey = this.getAttribute('api-key');
-        this.serverUrl = this.getAttribute('server-url') || 'https://api.alfinac.com:5002/lepus-gpt/llm/api/v1/ask';
+        this.attachShadow({mode: 'open'});
+        this.serverUrl = this.getAttribute('server-url');
+        this.access_token = this.getAttribute('access-token');
+        this.model_type = this.getAttribute('model-type') || "bee";
+        this.session_chatbot = ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+            (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+        );
         this.isChatVisible = false;
         this.isSending = false;
         this.primaryColor = this.getAttribute('primary-color') || '#FF6F00';
@@ -299,13 +303,29 @@ class ChatBot extends HTMLElement {
         this.showTypingIndicator();
 
         try {
-            const response = await fetch(this.serverUrl, {
+            if (!this.access_token)
+                return alert("Token not provide")
+            let server_url = this.serverUrl
+            if (!server_url)
+                return alert("server_url not provide")
+
+            let model_type = this.model_type
+
+            if (model_type === "bee") server_url += "/lepus-gpt/llm/api/v1/ask-bee"
+            else if (model_type === 'public') server_url += "/lepus-gpt/llm/api/v1/ask-public"
+            else return alert("Model type not supported")
+
+            const response = await fetch(server_url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-api-key': this.apiKey
+                    Authorization: 'Bearer ' + this.access_token,
                 },
-                body: JSON.stringify({ message })
+                body: JSON.stringify({
+                    message: message,
+                    chat_session_id: this.session_chatbot,
+                    chat_history: []
+                })
             });
 
             const data = await response.json();
