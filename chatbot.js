@@ -327,6 +327,11 @@ class ChatBot extends HTMLElement {
                     chat_history: []
                 })
             });
+            if (response.status === 401) {
+                this.removeTypingIndicator();
+                this.appendMessage('System', 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.');
+                return;
+            }
 
             const data = await response.json();
             this.removeTypingIndicator();
