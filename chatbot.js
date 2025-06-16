@@ -122,11 +122,11 @@ class ChatBot extends HTMLElement {
                 }
 
                 .message-you {
-                    align-items: flex-start;
+                    align-items: flex-end;
                 }
 
                 .message-bot, .message-typing {
-                    align-items: flex-end;
+                    align-items: flex-start;
                 }
 
                 .message-bubble {
