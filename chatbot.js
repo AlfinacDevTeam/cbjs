@@ -11,7 +11,7 @@ class ChatBot extends HTMLElement {
         this.session_chatbot = ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
             (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
         );
-        this.isChatVisible = false;
+        this.isChatVisible = this.getAttribute('chat-visible') ||  true;
         this.isSending = false;
         this.primaryColor = this.getAttribute('primary-color') || '#FF6F00';
         this.chatWidth = this.getAttribute('chat-width') || '320px';
