@@ -1,4 +1,5 @@
-cat > chatbot.js <<'EOF'
+cat > chatbot-tuning.js <<'EOF'
+
 class ChatBot extends HTMLElement {
     constructor() {
         super();
@@ -314,6 +315,17 @@ class ChatBot extends HTMLElement {
         input.value = '';
 
         // Hiển thị 3 chấm nhảy
+        this.showTypingIndicator();
+
+// ⏳ Chờ 2 giây, rồi thêm câu "Giả lập phản hồi từ bot..."
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+// 👉 Thêm fake reply (như thể bot phản hồi ban đầu)
+        this.removeTypingIndicator();
+        this.appendMessage('Bot', '🤖 Để mình kiểm tra thông tin cho bạn nhé...');
+
+// ⏱️ Đợi 300ms nữa rồi show lại 3 chấm nhảy
+        await new Promise(resolve => setTimeout(resolve, 300));
         this.showTypingIndicator();
 
         try {
