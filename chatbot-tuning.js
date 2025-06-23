@@ -323,7 +323,7 @@ class ChatBot extends HTMLElement {
             let server_url = this.serverUrl
             if (!server_url)
                 return alert("server_url not provide")
-            const endpoint = `${server_url}/lepus-gpt/graph/api/v1/pipeline-chat-stream`;
+            const endpoint = `${server_url}/lepus-gpt/llm/api/v2/ask-bee`;
 
             const response = await fetch(endpoint, {
                 method: 'POST',
