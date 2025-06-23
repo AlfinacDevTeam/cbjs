@@ -12,7 +12,7 @@ class ChatBot extends HTMLElement {
         this.session_chatbot = ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
             (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
         );
-        this.isChatVisible = this.getAttribute('chat-visible') ||  true;
+        this.isChatVisible = this.getAttribute('chat-visible') !== "N";
         this.isSending = false;
         this.primaryColor = this.getAttribute('primary-color') || '#FF6F00';
         this.chatWidth = this.getAttribute('chat-width') || '320px';
@@ -324,7 +324,7 @@ class ChatBot extends HTMLElement {
             let server_url = this.serverUrl
             if (!server_url)
                 return alert("server_url not provide")
-            const endpoint = `${server_url}/lepus-gpt/graph/api/v1/pipeline-chat-stream`;
+            const endpoint = `${server_url}/lepus-gpt/llm/api/v2/ask-bee`;
 
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -425,7 +425,7 @@ class ChatBot extends HTMLElement {
             <div class="message-bubble">
                 <span class="typing-dot"></span>
                 <span class="typing-dot"></span>
-                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>z
             </div>
         `;
         messagesDiv.appendChild(typingElem);
@@ -441,6 +441,5 @@ class ChatBot extends HTMLElement {
 }
 
 customElements.define('chat-bot', ChatBot);
-
 
 EOF

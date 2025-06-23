@@ -333,6 +333,7 @@ class ChatBot extends HTMLElement {
                 },
                 body: JSON.stringify({
                     question: message,
+                    chat_session_id: this.session_chatbot,
                     history: [
                     ],
                 }),
