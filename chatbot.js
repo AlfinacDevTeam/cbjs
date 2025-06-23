@@ -15,6 +15,7 @@ class ChatBot extends HTMLElement {
         this.isSending = false;
         this.primaryColor = this.getAttribute('primary-color') || '#FF6F00';
         this.chatWidth = this.getAttribute('chat-width') || '320px';
+        this.margin = this.getAttribute('margin') || '0px';
         this.chatHeight = this.getAttribute('chat-height') || '450px';
         this.positionBottom = this.getAttribute('position-bottom') || '80px';
         this.positionRight = this.getAttribute('position-right') || '20px';
@@ -28,6 +29,7 @@ class ChatBot extends HTMLElement {
                     --primary-color: ${this.primaryColor};
                     --chat-width: ${this.chatWidth};
                     --chat-height: ${this.chatHeight};
+                    --margin: ${this.margin};
                     --position-bottom: ${this.positionBottom};
                     --position-right: ${this.positionRight};
                     --pmr-color: orange;
@@ -36,6 +38,7 @@ class ChatBot extends HTMLElement {
                 .action-button {
                     position: fixed;
                     bottom: 30px;
+                    display:${this.isChatVisible ? 'none' : 'flex'} ;
                     right: var(--position-right);
                     width: 50px;
                     height: 50px;
@@ -44,7 +47,6 @@ class ChatBot extends HTMLElement {
                     color: white;
                     border: none;
                     font-size: 24px;
-                    display: flex;
                     align-items: center;
                     justify-content: center;
                     cursor: pointer;
@@ -57,14 +59,21 @@ class ChatBot extends HTMLElement {
                 }
 
                 .chat-container {
+                        width: 100%;
+                        /*max-width: none;*/
+                        /*height: 100%;*/
+                        bottom: 0;
+                        right: 0;
+                        border-radius: 0;
+                    margin: var(--margin);
                     position: fixed;
-                    bottom: var(--position-bottom);
-                    right: var(--position-right);
+                    /*bottom: var(--position-bottom);*/
+                    /*right: var(--position-right);*/
                     width: var(--chat-width);
-                    max-width: 90vw;
+                    /*max-width: 90vw;*/
                     height: var(--chat-height);
-                    max-height: 80vh;
-                    border-radius: 12px;
+                    max-height: 100%;
+                    /*border-radius: 12px;*/
                     background: white;
                     box-shadow: 0 4px 16px rgba(0,0,0,0.2);
                     display: flex;
@@ -232,31 +241,31 @@ class ChatBot extends HTMLElement {
                     background: color-mix(in srgb, var(--primary-color) 90%, black);
                 }
 
-                @media (max-width: 480px) {
-                    .chat-container {
-                        width: 100%;
-                        max-width: none;
-                        height: 70vh;
-                        bottom: 0;
-                        right: 0;
-                        border-radius: 0;
-                    }
-                    .action-button {
-                        bottom: 26px;
-                        right: 16px;
-                    }
-                }
+                /*@media (max-width: 480px) {*/
+                /*    .chat-container {*/
+                /*        width: 100%;*/
+                /*        max-width: none;*/
+                /*        height: 100%;*/
+                /*        bottom: 0;*/
+                /*        right: 0;*/
+                /*        border-radius: 0;*/
+                /*    }*/
+                /*    .action-button {*/
+                /*        bottom: 26px;*/
+                /*        right: 16px;*/
+                /*    }*/
+                /*}*/
             </style>
 
             <button class="action-button" style="z-index: 9999999999" id="toggleChatBtn">💬</button>
             <div class="chat-container" style="z-index: 9999999999;" id="chatContainer">
                 <div class="chat-header">
-                    BeeGPT Assistant
+                    Bee AI Assistant
                     <button class="close-button" style="color: #ff0063" id="closeBtn">✕</button>
                 </div>
                 <div class="chat-messages" id="messages">
                 <div class="message message-bot">
-                    <div class="message-bubble">Chào bạn, mình là BeeGPT bạn cần tôi giúp gì?</div>
+                    <div class="message-bubble">Chào bạn, mình là Bee AI Assistant bạn cần tôi giúp gì?</div>
                 </div>
                 </div>
                 <div class="chat-input">
@@ -277,6 +286,8 @@ class ChatBot extends HTMLElement {
     toggleChat() {
         this.isChatVisible = !this.isChatVisible;
         const chatContainer = this.shadowRoot.querySelector('#chatContainer');
+        const toggleChatBtn = this.shadowRoot.querySelector('#toggleChatBtn');
+        toggleChatBtn.style.display = this.isChatVisible ? 'none':'flex';
         chatContainer.style.opacity = this.isChatVisible ? '1' : '0';
         chatContainer.style.transform = this.isChatVisible ? 'scale(1)' : 'scale(0.8)';
         chatContainer.style.visibility = this.isChatVisible ? 'visible' : 'hidden';

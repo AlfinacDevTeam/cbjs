@@ -1,3 +1,4 @@
+cat > chatbot.js <<'EOF'
 class ChatBot extends HTMLElement {
     constructor() {
         super();
@@ -272,6 +273,7 @@ class ChatBot extends HTMLElement {
                     <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 từ)..." />
                     <button id="sendBtn">Gửi</button>
                 </div>
+                <input id="hidden_history" type="hidden" value="[]">
             </div>
         `;
 
@@ -293,6 +295,7 @@ class ChatBot extends HTMLElement {
         chatContainer.style.visibility = this.isChatVisible ? 'visible' : 'hidden';
     }
 
+// Trong class ChatBot
     async sendMessage() {
         if (this.isSending) return;
 
@@ -310,61 +313,106 @@ class ChatBot extends HTMLElement {
         this.appendMessage('You', message);
         input.value = '';
 
-        // Hiển thị 3 chấm nhảy nhảy
+        // Hiển thị 3 chấm nhảy
         this.showTypingIndicator();
 
         try {
-            if (!this.access_token)
-                return alert("Token not provide")
+            if (!this.access_token) {
+                throw new Error('Token not provided');
+            }
+
             let server_url = this.serverUrl
             if (!server_url)
                 return alert("server_url not provide")
+            const endpoint = `${server_url}/lepus-gpt/graph/api/v1/pipeline-chat-stream`;
 
-            let model_type = this.model_type
-
-            if (model_type === "bee") server_url += "/lepus-gpt/llm/api/v1/ask-bee"
-            else if (model_type === 'public') server_url += "/lepus-gpt/llm/api/v1/ask-public"
-            else return alert("Model type not supported")
-
-            const response = await fetch(server_url, {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: 'Bearer ' + this.access_token,
                 },
                 body: JSON.stringify({
-                    message: message,
-                    chat_session_id: this.session_chatbot,
-                    chat_history: []
-                })
+                    question: message,
+                    history: [
+                    ],
+                }),
             });
+
             if (response.status === 401) {
                 this.removeTypingIndicator();
                 this.appendMessage('System', 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.');
                 return;
             }
 
-            const data = await response.json();
-            this.removeTypingIndicator();
-            this.appendMessage('Bot', data.message || '(Không có phản hồi)');
+            if (!response.body) {
+                throw new Error('No response body');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let botMessageDiv = null;
+            let buffer = '';
+            let isFirstChunk = true;
+
+            const animateTyping = async (target, text) => {
+                for (let i = 0; i < text.length; i++) {
+                    target.textContent += text[i];
+                    await new Promise(resolve => setTimeout(resolve, 10)); // tốc độ hiện chữ
+                }
+            };
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+
+                if (isFirstChunk) {
+                    this.removeTypingIndicator();
+                    botMessageDiv = this.appendMessage('Bot', '', true); // tạo thẻ rỗng
+                    isFirstChunk = false;
+                }
+
+                if (botMessageDiv) {
+                    await animateTyping(botMessageDiv, chunk); // thêm từng ký tự
+                }
+            }
+
+            if (!botMessageDiv) {
+                this.removeTypingIndicator();
+                this.appendMessage('Bot', 'Không nhận được phản hồi từ server.');
+            }
         } catch (error) {
+            console.error('Stream error:', error);
             this.removeTypingIndicator();
-            this.appendMessage('Error', 'Không thể gửi tin nhắn.');
+            this.appendMessage('Error', 'Không thể gửi tin nhắn: ' + error.message);
         } finally {
-            // Kích hoạt lại input và button
             this.isSending = false;
             input.disabled = false;
             sendBtn.disabled = false;
-            input.focus()
+            input.focus();
         }
+
     }
 
-    appendMessage(sender, text) {
+    appendMessage(sender, text, isStreaming = false) {
         const messagesDiv = this.shadowRoot.querySelector('#messages');
         const messageElem = document.createElement('div');
         messageElem.className = `message message-${sender.toLowerCase()}`;
-        messageElem.innerHTML = `<div class="message-bubble">${text}</div>`;
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        bubble.textContent = text;
+        messageElem.appendChild(bubble);
         messagesDiv.appendChild(messageElem);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        return isStreaming ? bubble : messageElem;
+    }
+
+    updateMessage(bubbleDiv, text) {
+        bubbleDiv.textContent += text;
+        const messagesDiv = this.shadowRoot.querySelector('#messages');
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
@@ -394,3 +442,5 @@ class ChatBot extends HTMLElement {
 
 customElements.define('chat-bot', ChatBot);
 
+
+EOF
