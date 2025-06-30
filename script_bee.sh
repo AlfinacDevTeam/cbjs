@@ -1,3 +1,4 @@
+cat > chatbot-bee.js <<'EOF'
 class ChatBot extends HTMLElement {
     constructor() {
         super();
@@ -146,7 +147,7 @@ class ChatBot extends HTMLElement {
                     font-size: 14px;
                     line-height: 1.4;
                     word-wrap: break-word;
-                    white-space: pre-wrap; 
+                    white-space: pre-wrap;
                 }
 
                 .message-you .message-bubble {
@@ -487,3 +488,5 @@ class ChatBot extends HTMLElement {
 }
 
 customElements.define('chat-bot', ChatBot);
+
+EOF
