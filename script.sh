@@ -277,7 +277,7 @@ class ChatBot extends HTMLElement {
                 </div>
                 </div>
                 <div class="chat-input">
-                    <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 từ)..." style="font-size: 16px !important;"/>
+                    <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 từ)..."/>
                     <button id="sendBtn">Gửi</button>
                 </div>
                 <input id="hidden_history" type="hidden" value="[]">
@@ -340,6 +340,7 @@ class ChatBot extends HTMLElement {
                 },
                 body: JSON.stringify({
                     question: message,
+                    model_type: this?.model_type || "alfinac",
                     user_bfs: this?.user_bfs || null,
                     chat_session_id: this.session_chatbot,
                     history: [],
@@ -440,6 +441,7 @@ class ChatBot extends HTMLElement {
         bubble.className = 'message-bubble';
         // bubble.textContent = text;
         bubble.innerHTML = text.replace(/\n/g, "<br>");
+        // bubble.innerHTML = bubble.innerHTML.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
         messageElem.appendChild(bubble);
         messagesDiv.appendChild(messageElem);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -463,7 +465,7 @@ class ChatBot extends HTMLElement {
         // Tạo bubble chứa nội dung và dot nhảy
         typingElem.innerHTML = `
         <div class="message-bubble">
-            Alfinac trả lời
+<!--            Alfinac trả lời-->
             <span class="typing-dot"></span>
             <span class="typing-dot"></span>
             <span class="typing-dot"></span>
