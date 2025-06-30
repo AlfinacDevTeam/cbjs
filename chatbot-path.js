@@ -146,6 +146,7 @@ class ChatBot extends HTMLElement {
                     font-size: 14px;
                     line-height: 1.4;
                     word-wrap: break-word;
+                    white-space: pre-wrap; 
                 }
 
                 .message-you .message-bubble {
@@ -266,16 +267,16 @@ class ChatBot extends HTMLElement {
             <button class="action-button" style="z-index: 9999999999" id="toggleChatBtn">💬</button>
             <div class="chat-container" style="z-index: 9999999999;" id="chatContainer">
                 <div class="chat-header">
-                    Bee AI Assistant
+                    Alfinac AI Assistant
                     <button class="close-button" style="color: #ff0063" id="closeBtn">✕</button>
                 </div>
                 <div class="chat-messages" id="messages">
                 <div class="message message-bot">
-                    <div class="message-bubble">Chào bạn, mình là Bee AI Assistant bạn cần tôi giúp gì?</div>
+                    <div class="message-bubble">Chào bạn, mình là Alfinac AI Assistant bạn cần tôi giúp gì?</div>
                 </div>
                 </div>
                 <div class="chat-input">
-                    <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 từ)..." />
+                    <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 từ)..."/>
                     <button id="sendBtn">Gửi</button>
                 </div>
                 <input id="hidden_history" type="hidden" value="[]">
@@ -329,7 +330,7 @@ class ChatBot extends HTMLElement {
             let server_url = this.serverUrl
             if (!server_url)
                 return alert("server_url not provide")
-            const endpoint = `${server_url}/lepus-gpt/llm/api/v2/ask-bee`;
+            const endpoint = `${server_url}/llm/api/v2/ask-bee`;
             const responseRM = fetch(endpoint, {
                 method: 'POST',
                 headers: {
@@ -436,7 +437,8 @@ class ChatBot extends HTMLElement {
         messageElem.className = `message message-${sender.toLowerCase()}`;
         const bubble = document.createElement('div');
         bubble.className = 'message-bubble';
-        bubble.textContent = text;
+        // bubble.textContent = text;
+        bubble.innerHTML = text.replace(/\n/g, "<br>");
         messageElem.appendChild(bubble);
         messagesDiv.appendChild(messageElem);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -460,7 +462,7 @@ class ChatBot extends HTMLElement {
         // Tạo bubble chứa nội dung và dot nhảy
         typingElem.innerHTML = `
         <div class="message-bubble">
-            🐝 Bee trả lời
+            Alfinac trả lời
             <span class="typing-dot"></span>
             <span class="typing-dot"></span>
             <span class="typing-dot"></span>

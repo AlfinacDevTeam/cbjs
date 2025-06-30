@@ -1,4 +1,4 @@
-cat > chatbot.js <<'EOF'
+cat > chatbot-path.js <<'EOF'
 class ChatBot extends HTMLElement {
     constructor() {
         super();
@@ -8,6 +8,7 @@ class ChatBot extends HTMLElement {
         this.attachShadow({mode: 'open'});
         this.serverUrl = this.getAttribute('server-url');
         this.access_token = this.getAttribute('access-token');
+        this.user_bfs = this.getAttribute('user-bfs');
         this.model_type = this.getAttribute('model-type') || "bee";
         this.session_chatbot = ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
             (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
@@ -146,6 +147,7 @@ class ChatBot extends HTMLElement {
                     font-size: 14px;
                     line-height: 1.4;
                     word-wrap: break-word;
+                    white-space: pre-wrap;
                 }
 
                 .message-you .message-bubble {
@@ -217,7 +219,12 @@ class ChatBot extends HTMLElement {
                     background: #ffffff;
                     color: #1a1a1a;
                 }
-
+                .message-bubble:empty {
+                    padding: 0;
+                    margin: 0;
+                    background: transparent;
+                    border: none;
+                }
                 .chat-input input:disabled {
                     background: #e0e0e0;
                     cursor: not-allowed;
@@ -261,16 +268,16 @@ class ChatBot extends HTMLElement {
             <button class="action-button" style="z-index: 9999999999" id="toggleChatBtn">💬</button>
             <div class="chat-container" style="z-index: 9999999999;" id="chatContainer">
                 <div class="chat-header">
-                    Bee AI Assistant
+                    Alfinac AI Assistant
                     <button class="close-button" style="color: #ff0063" id="closeBtn">✕</button>
                 </div>
                 <div class="chat-messages" id="messages">
                 <div class="message message-bot">
-                    <div class="message-bubble">Chào bạn, mình là Bee AI Assistant bạn cần tôi giúp gì?</div>
+                    <div class="message-bubble">Chào bạn, mình là Alfinac AI Assistant bạn cần tôi giúp gì?</div>
                 </div>
                 </div>
                 <div class="chat-input">
-                    <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 từ)..." />
+                    <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 từ)..." style="font-size: 16px !important;"/>
                     <button id="sendBtn">Gửi</button>
                 </div>
                 <input id="hidden_history" type="hidden" value="[]">
@@ -289,7 +296,7 @@ class ChatBot extends HTMLElement {
         this.isChatVisible = !this.isChatVisible;
         const chatContainer = this.shadowRoot.querySelector('#chatContainer');
         const toggleChatBtn = this.shadowRoot.querySelector('#toggleChatBtn');
-        toggleChatBtn.style.display = this.isChatVisible ? 'none':'flex';
+        toggleChatBtn.style.display = this.isChatVisible ? 'none' : 'flex';
         chatContainer.style.opacity = this.isChatVisible ? '1' : '0';
         chatContainer.style.transform = this.isChatVisible ? 'scale(1)' : 'scale(0.8)';
         chatContainer.style.visibility = this.isChatVisible ? 'visible' : 'hidden';
@@ -324,9 +331,8 @@ class ChatBot extends HTMLElement {
             let server_url = this.serverUrl
             if (!server_url)
                 return alert("server_url not provide")
-            const endpoint = `${server_url}/lepus-gpt/llm/api/v2/ask-bee`;
-
-            const response = await fetch(endpoint, {
+            const endpoint = `${server_url}/llm/api/v2/ask-bee`;
+            const responseRM = fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -334,67 +340,95 @@ class ChatBot extends HTMLElement {
                 },
                 body: JSON.stringify({
                     question: message,
+                    user_bfs: this?.user_bfs || null,
                     chat_session_id: this.session_chatbot,
-                    history: [
-                    ],
+                    history: [],
                 }),
             });
-
-            if (response.status === 401) {
-                this.removeTypingIndicator();
-                this.appendMessage('System', 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.');
-                return;
-            }
-
-            if (!response.body) {
-                throw new Error('No response body');
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder('utf-8');
-            let botMessageDiv = null;
-            let buffer = '';
-            let isFirstChunk = true;
+            let textQueue = [];
+            let typing = false;
 
             const animateTyping = async (target, text) => {
-                for (let i = 0; i < text.length; i++) {
-                    target.textContent += text[i];
-                    await new Promise(resolve => setTimeout(resolve, 10)); // tốc độ hiện chữ
+                textQueue.push(text);
+                if (typing) return; // Đã có animate đang chạy
+
+                typing = true;
+                while (textQueue.length > 0) {
+                    const nextText = textQueue.shift();
+                    for (let i = 0; i < nextText.length; i++) {
+                        target.textContent += nextText[i];
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
                 }
+                typing = false;
             };
 
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                buffer += chunk;
-
-                if (isFirstChunk) {
+            let botMessageDiv = null;
+            botMessageDiv = this.appendMessage('Bot', '', true); // tạo thẻ rỗng
+            responseRM.then(async response => {
+                if (response.status === 401) {
                     this.removeTypingIndicator();
-                    botMessageDiv = this.appendMessage('Bot', '', true); // tạo thẻ rỗng
-                    isFirstChunk = false;
+                    this.appendMessage('System', 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.');
+                    return;
                 }
 
-                if (botMessageDiv) {
-                    await animateTyping(botMessageDiv, chunk); // thêm từng ký tự
+                if (!response.body) {
+                    throw new Error('No response body');
                 }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+
+                let isServerResponse = false;
+                while (true) {
+                    const {value, done} = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, {stream: true});
+                    buffer += chunk;
+
+
+                    if (botMessageDiv) {
+                        if (!isServerResponse) {
+                            botMessageDiv.innerHTML = "";
+                        }
+                        isServerResponse = true;
+                        await animateTyping(botMessageDiv, chunk);
+                    }
+                }
+
+                if (!isServerResponse) {
+                    this.removeTypingIndicator();
+                    this.appendMessage('Bot', 'Không nhận được phản hồi từ server.');
+                } else {
+                    this.isSending = false;
+                    input.disabled = false;
+                    sendBtn.disabled = false;
+                    input.focus();
+                }
+            })
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            this.removeTypingIndicator();
+            if (botMessageDiv) {
+                await animateTyping(botMessageDiv, `Mình đang tra cứu dữ liệu để trả lời câu hỏi *${message}*\n. `);
             }
 
-            if (!botMessageDiv) {
-                this.removeTypingIndicator();
-                this.appendMessage('Bot', 'Không nhận được phản hồi từ server.');
-            }
         } catch (error) {
             console.error('Stream error:', error);
             this.removeTypingIndicator();
             this.appendMessage('Error', 'Không thể gửi tin nhắn: ' + error.message);
-        } finally {
             this.isSending = false;
             input.disabled = false;
             sendBtn.disabled = false;
             input.focus();
         }
+        // finally {
+        //     this.isSending = false;
+        //     input.disabled = false;
+        //     sendBtn.disabled = false;
+        //     input.focus();
+        // }
 
     }
 
@@ -404,7 +438,8 @@ class ChatBot extends HTMLElement {
         messageElem.className = `message message-${sender.toLowerCase()}`;
         const bubble = document.createElement('div');
         bubble.className = 'message-bubble';
-        bubble.textContent = text;
+        // bubble.textContent = text;
+        bubble.innerHTML = text.replace(/\n/g, "<br>");
         messageElem.appendChild(bubble);
         messagesDiv.appendChild(messageElem);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -419,16 +454,22 @@ class ChatBot extends HTMLElement {
 
     showTypingIndicator() {
         const messagesDiv = this.shadowRoot.querySelector('#messages');
+
+        // Tạo thẻ gốc
         const typingElem = document.createElement('div');
         typingElem.className = 'message message-typing';
         typingElem.id = 'typing-indicator';
+
+        // Tạo bubble chứa nội dung và dot nhảy
         typingElem.innerHTML = `
-            <div class="message-bubble">
-                <span class="typing-dot"></span>
-                <span class="typing-dot"></span>
-                <span class="typing-dot"></span>
-            </div>
-        `;
+        <div class="message-bubble">
+            Alfinac trả lời
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+        </div>
+    `;
+
         messagesDiv.appendChild(typingElem);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
@@ -436,9 +477,12 @@ class ChatBot extends HTMLElement {
     removeTypingIndicator() {
         const typingElem = this.shadowRoot.querySelector('#typing-indicator');
         if (typingElem) {
+            const intervalId = typingElem.getAttribute('data-interval-id');
+            if (intervalId) clearInterval(Number(intervalId));
             typingElem.remove();
         }
     }
+
 }
 
 customElements.define('chat-bot', ChatBot);
