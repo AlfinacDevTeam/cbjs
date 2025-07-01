@@ -331,7 +331,7 @@ class ChatBot extends HTMLElement {
             let server_url = this.serverUrl
             if (!server_url)
                 return alert("server_url not provide")
-            const endpoint = `${server_url}/llm/api/v2/ask-bee`;
+            const endpoint = `${server_url}/lepus-gpt/llm/api/v2/ask-bee`;
             const responseRM = fetch(endpoint, {
                 method: 'POST',
                 headers: {
