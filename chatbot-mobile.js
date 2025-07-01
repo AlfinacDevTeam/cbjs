@@ -26,12 +26,7 @@ class ChatBot extends HTMLElement {
     this.positionBottom = this.getAttribute("position-bottom") || "80px";
     this.positionRight = this.getAttribute("position-right") || "20px";
 
-    window.handleMessageFromRN = (data) => {
-      this.messageFirst = data;
-      if (data && typeof data === "string") {
-        this.sendMessage();
-      }
-    };
+    this.triggerEvent();
 
     this.render();
   }
@@ -224,6 +219,7 @@ class ChatBot extends HTMLElement {
                     display: flex;
                     align-items: center;
                     padding: 0 12px;
+                    margin-bottom: 20px;
                     flex-shrink: 0;
                     gap: 8px
                 }
@@ -332,6 +328,15 @@ class ChatBot extends HTMLElement {
       });
   }
 
+  triggerEvent() {
+    window.handleMessageFromRN = (data) => {
+      this.messageFirst = data;
+      if (data && typeof data === "string") {
+        this.sendMessage();
+      }
+    };
+  }
+
   toggleChat() {
     this.isChatVisible = !this.isChatVisible;
     const chatContainer = this.shadowRoot.querySelector("#chatContainer");
@@ -432,12 +437,18 @@ class ChatBot extends HTMLElement {
         let buffer = "";
 
         let isServerResponse = false;
+        // let firstChunkReceived = false;
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
           buffer += chunk;
+
+          // if (!firstChunkReceived) {
+          //   this.removeTypingIndicator();
+          //   firstChunkReceived = true;
+          // }
 
           if (botMessageDiv) {
             if (!isServerResponse) {
@@ -463,7 +474,7 @@ class ChatBot extends HTMLElement {
       if (botMessageDiv) {
         await animateTyping(
           botMessageDiv,
-          `Mình đang tra cứu dữ liệu để trả lời câu hỏi *${message}*\n. `
+          `Mình đang tra cứu dữ liệu để trả lời câu hỏi *${message}*`
         );
       }
     } catch (error) {
@@ -515,7 +526,7 @@ class ChatBot extends HTMLElement {
     // Tạo bubble chứa nội dung và dot nhảy
     typingElem.innerHTML = `
         <div class="message-bubble">
-<!--            Alfinac trả lời-->
+            <span>Alfinac trả lời </span>
             <span class="typing-dot"></span>
             <span class="typing-dot"></span>
             <span class="typing-dot"></span>
