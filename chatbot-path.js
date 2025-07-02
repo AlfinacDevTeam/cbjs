@@ -332,11 +332,19 @@ class ChatBot extends HTMLElement {
             if (!server_url)
                 return alert("server_url not provide")
             const endpoint = `${server_url}/llm/api/v2/ask-bee`;
+            let clientIP = ""
+            try {
+                const ipRes = await fetch("https://checkip.amazonaws.com");
+                clientIP = (await ipRes.text()).trim(); // ví dụ: "118.69.217.191"
+            } catch (err) {
+
+            }
             const responseRM = fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: 'Bearer ' + this.access_token,
+                    "x-forwarded-for": clientIP
                 },
                 body: JSON.stringify({
                     question: message,
@@ -346,7 +354,7 @@ class ChatBot extends HTMLElement {
                     history: this.chatHistory
                 }),
             });
-            this.chatHistory.push({ role: 'user', content: message });
+            this.chatHistory.push({role: 'user', content: message});
 
             let textQueue = [];
             let typing = false;
@@ -405,7 +413,7 @@ class ChatBot extends HTMLElement {
                     this.removeTypingIndicator();
                     this.appendMessage('Bot', 'Không nhận được phản hồi từ server.');
                 } else {
-                    this.chatHistory.push({ role: 'assistant', content: botMessageDiv.innerText });
+                    this.chatHistory.push({role: 'assistant', content: botMessageDiv.innerText});
                     this.isSending = false;
                     input.disabled = false;
                     sendBtn.disabled = false;
