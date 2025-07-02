@@ -20,6 +20,7 @@ class ChatBot extends HTMLElement {
         this.chatHeight = this.getAttribute('chat-height') || '450px';
         this.positionBottom = this.getAttribute('position-bottom') || '80px';
         this.positionRight = this.getAttribute('position-right') || '20px';
+        this.chatHistory = [];
         this.render();
     }
 
@@ -342,9 +343,11 @@ class ChatBot extends HTMLElement {
                     model_type: this?.model_type || "alfinac",
                     user_bfs: this?.user_bfs || null,
                     chat_session_id: this.session_chatbot,
-                    history: [],
+                    history: this.chatHistory
                 }),
             });
+            this.chatHistory.push({ role: 'user', content: message });
+
             let textQueue = [];
             let typing = false;
 
@@ -402,6 +405,7 @@ class ChatBot extends HTMLElement {
                     this.removeTypingIndicator();
                     this.appendMessage('Bot', 'Không nhận được phản hồi từ server.');
                 } else {
+                    this.chatHistory.push({ role: 'assistant', content: botMessageDiv.innerText });
                     this.isSending = false;
                     input.disabled = false;
                     sendBtn.disabled = false;

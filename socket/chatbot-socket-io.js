@@ -20,7 +20,21 @@ class ChatBot extends HTMLElement {
         this.chatHeight = this.getAttribute('chat-height') || '450px';
         this.positionBottom = this.getAttribute('position-bottom') || '80px';
         this.positionRight = this.getAttribute('position-right') || '20px';
+        this.chatHistory = [];
+        this.chat_with_staff = false;
+        this.socket = null;
+        this.currentRoom = null;
+        this.session_client_id = null;
         this.render();
+        // Thêm script socket.io sau khi render xong
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/gh/AlfinacDevTeam/cbjs@socket-io/socket/socket.io.min.js';
+        script.type = 'text/javascript';
+        script.onload = () => {
+            console.log('Socket.IO script loaded successfully');
+        };
+        document.head.appendChild(script); // ✅ dùng document.head
+
     }
 
     render() {
@@ -247,27 +261,74 @@ class ChatBot extends HTMLElement {
                 .chat-input button:hover:not(:disabled) {
                     background: color-mix(in srgb, var(--primary-color) 90%, black);
                 }
+                .menu-wrapper {
+                    position: absolute;
+                    right: 36px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                     width: max-content; /* hoặc bỏ width */
+                }
+                
+                .menu-button {
+                    background: transparent;
+                    border: none;
+                    font-size: 18px;
+                    color: white;
+                    cursor: pointer;
+                }
+                
+                .menu-dropdown {
+                    position: absolute;
+                    top: 30px;
+                    right: 0;
+                    background: white;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    display: none;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                    z-index: 999;
+                    min-width: 160px;
+                    white-space: nowrap;
+                }
+                
+                .menu-item {
+                    padding: 10px 12px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    color: #333;
+                }
+                
+                .menu-item:hover {
+                    background-color: #f0f0f0;
+                }
+                
+                .message-noti {
+                    justify-content: center;
+                    font-size: 13px;
+                    color: #888;
+                    text-align: center;
+                }
+                
+                .message-noti .message-bubble {
+                    background: none;
+                    color: #888;
+                    box-shadow: none;
+                    padding: 0;
+                }
 
-                /*@media (max-width: 480px) {*/
-                /*    .chat-container {*/
-                /*        width: 100%;*/
-                /*        max-width: none;*/
-                /*        height: 100%;*/
-                /*        bottom: 0;*/
-                /*        right: 0;*/
-                /*        border-radius: 0;*/
-                /*    }*/
-                /*    .action-button {*/
-                /*        bottom: 26px;*/
-                /*        right: 16px;*/
-                /*    }*/
-                /*}*/
             </style>
 
             <button class="action-button" style="z-index: 9999999999" id="toggleChatBtn">💬</button>
             <div class="chat-container" style="z-index: 9999999999;" id="chatContainer">
-                <div class="chat-header">
+               <div class="chat-header">
                     Alfinac AI Assistant
+                    <div class="menu-wrapper">
+                        <button class="menu-button" id="menuBtn">⋮</button>
+                        <div class="menu-dropdown" id="menuDropdown">
+                            <div class="menu-item" id="chatWithStaff">💬 Chat với nhân viên</div>
+                            <div class="menu-item" id="endChatWithStaff" style="display: none">❌ Kết thúc với nhân viên</div>
+                        </div>
+                    </div>
                     <button class="close-button" style="color: #ff0063" id="closeBtn">✕</button>
                 </div>
                 <div class="chat-messages" id="messages">
@@ -282,13 +343,51 @@ class ChatBot extends HTMLElement {
                 <input id="hidden_history" type="hidden" value="[]">
             </div>
         `;
-
+        this.autoScroll()
         this.shadowRoot.querySelector('#toggleChatBtn').addEventListener('click', () => this.toggleChat());
         this.shadowRoot.querySelector('#closeBtn').addEventListener('click', () => this.toggleChat());
         this.shadowRoot.querySelector('#sendBtn').addEventListener('click', () => this.sendMessage());
         this.shadowRoot.querySelector('#messageInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.sendMessage();
         });
+        // Xử lý mở/tắt dropdown
+        const menuBtn = this.shadowRoot.querySelector('#menuBtn');
+        const menuDropdown = this.shadowRoot.querySelector('#menuDropdown');
+        menuBtn.addEventListener('click', () => {
+            menuDropdown.style.display = menuDropdown.style.display === 'block' ? 'none' : 'block';
+        });
+        const chatWithStaff = this.shadowRoot.querySelector('#chatWithStaff');
+        const endChatWithStaff = this.shadowRoot.querySelector('#endChatWithStaff');
+        let dom_chat_with_staff = this.chat_with_staff;
+
+
+        endChatWithStaff.addEventListener('click', () => {
+            this.disconnect()
+        });
+
+
+        chatWithStaff.addEventListener('click', () => {
+            menuDropdown.style.display = 'none';
+            dom_chat_with_staff = true
+            if (dom_chat_with_staff) {
+                this.disableSending(true)
+                endChatWithStaff.style.display = 'block';
+                chatWithStaff.style.display = 'none';
+                this.showTypingIndicatorWithText("Đang kết nối với nhân viên");
+
+                setTimeout(() => {
+                    this.connect()
+                }, 2000);
+
+            } else {
+                endChatWithStaff.style.display = 'none';
+                chatWithStaff.style.display = 'block';
+            }
+
+            console.log('Đang chat với nhân viên:', dom_chat_with_staff);
+        });
+
+
     }
 
     toggleChat() {
@@ -303,17 +402,23 @@ class ChatBot extends HTMLElement {
 
 // Trong class ChatBot
     async sendMessage() {
+        const input = this.shadowRoot.querySelector('#messageInput');
+
+        const message = input.value.trim();
+        if (this.socket != null) {
+            this.socket.emit("send_message", {
+                message: message
+            })
+            input.value = '';
+            return
+        }
         if (this.isSending) return;
 
-        const input = this.shadowRoot.querySelector('#messageInput');
         const sendBtn = this.shadowRoot.querySelector('#sendBtn');
-        const message = input.value.trim();
         if (!message) return;
 
         // Vô hiệu hóa input và button
-        this.isSending = true;
-        input.disabled = true;
-        sendBtn.disabled = true;
+        this.disableSending(true);
 
         // Hiển thị tin nhắn người dùng
         this.appendMessage('You', message);
@@ -342,9 +447,11 @@ class ChatBot extends HTMLElement {
                     model_type: this?.model_type || "alfinac",
                     user_bfs: this?.user_bfs || null,
                     chat_session_id: this.session_chatbot,
-                    history: [],
+                    history: this.chatHistory
                 }),
             });
+            this.chatHistory.push({role: 'user', content: message});
+
             let textQueue = [];
             let typing = false;
 
@@ -402,10 +509,8 @@ class ChatBot extends HTMLElement {
                     this.removeTypingIndicator();
                     this.appendMessage('Bot', 'Không nhận được phản hồi từ server.');
                 } else {
-                    this.isSending = false;
-                    input.disabled = false;
-                    sendBtn.disabled = false;
-                    input.focus();
+                    this.chatHistory.push({role: 'assistant', content: botMessageDiv.innerText});
+                    this.disableSending(false)
                 }
             })
             await new Promise(resolve => setTimeout(resolve, 3000));
@@ -418,18 +523,18 @@ class ChatBot extends HTMLElement {
             console.error('Stream error:', error);
             this.removeTypingIndicator();
             this.appendMessage('Error', 'Không thể gửi tin nhắn: ' + error.message);
-            this.isSending = false;
-            input.disabled = false;
-            sendBtn.disabled = false;
-            input.focus();
+            this.disableSending(false)
         }
-        // finally {
-        //     this.isSending = false;
-        //     input.disabled = false;
-        //     sendBtn.disabled = false;
-        //     input.focus();
-        // }
 
+    }
+
+    disableSending(state) {
+        const input = this.shadowRoot.querySelector('#messageInput');
+        const sendBtn = this.shadowRoot.querySelector('#sendBtn');
+        this.isSending = state;
+        input.disabled = state;
+        sendBtn.disabled = state;
+        input.focus();
     }
 
     appendMessage(sender, text, isStreaming = false) {
@@ -475,6 +580,28 @@ class ChatBot extends HTMLElement {
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
+    showTypingIndicatorWithText(text) {
+        const messagesDiv = this.shadowRoot.querySelector('#messages')
+        this.removeTypingIndicator();
+        const typingElem = document.createElement('div');
+        typingElem.className = 'message message-typing';
+        typingElem.id = 'typing-indicator';
+
+        // Bubble chứa nội dung và dot nhảy
+        typingElem.innerHTML = `
+        <div class="message-bubble" style="white-space:normal !important;">
+            ${text ? `<span>${text}</span><br>` : ''}
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+        </div>
+    `;
+
+        messagesDiv.appendChild(typingElem);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+
     removeTypingIndicator() {
         const typingElem = this.shadowRoot.querySelector('#typing-indicator');
         if (typingElem) {
@@ -482,6 +609,123 @@ class ChatBot extends HTMLElement {
             if (intervalId) clearInterval(Number(intervalId));
             typingElem.remove();
         }
+    }
+
+    showTypingState(callback){
+        this.showTypingIndicatorWithText("",true);
+        setTimeout(() => {
+            this.removeTypingIndicator()
+            callback()
+        }, 1000);
+    }
+
+    disconnect() {
+        const chatWithStaff = this.shadowRoot.querySelector('#chatWithStaff');
+        const endChatWithStaff = this.shadowRoot.querySelector('#endChatWithStaff');
+        const menuDropdown = this.shadowRoot.querySelector('#menuDropdown');
+        menuDropdown.style.display = 'none';
+        this.chat_with_staff = false;
+        endChatWithStaff.style.display = 'none';
+        chatWithStaff.style.display = 'block';
+        this.removeTypingIndicator()
+        this.showTypingIndicatorWithText("❌ Đã kết thúc với nhân viên",true);
+        this.appendMessage("Noti","❌ Đã kết thúc với nhân viên")
+        this.disableSending(true)
+        setTimeout(() => {
+            this.removeTypingIndicator()
+            this.disableSending(false)
+        }, 1000);
+        console.log('Kết thúc chat với nhân viên.');
+        if (this.socket && this.socket.connected) {
+            this.socket.disconnect();
+            this.socket = null
+            console.log("🔌 Socket disconnected");
+
+        } else {
+            console.warn("⚠️ No active socket connection to disconnect.");
+        }
+
+        this.currentRoom = null;
+    }
+
+    connect(token) {
+        const auth = {};
+        if (token) {
+            auth.token = token;
+        }
+
+        this.socket = io("http://localhost:8001", {
+            path: "/lepus-socket-io/socket",
+            auth: auth,
+            transports: ['websocket']
+        });
+        let socket = this.socket
+        let dom_session_client_id
+        socket.on("connect", () => {
+            console.log(`✅ Connected with id ${socket.id}`);
+            dom_session_client_id = socket.id;
+        });
+
+        socket.on("receive_message", (data) => {
+            console.log(`📩 Message from ${data.from}: ${data.message}`);
+        });
+
+        socket.on("error", (data) => {
+            console.log(`❌ Error: ${data.message}`);
+        });
+        socket.on("connect_error", (err) => {
+            console.log(`❌ Connect error: ${err.message}`);
+        });
+        let dom_currentRoom = this.currentRoom
+        socket.on("chat_accepted", (data) => {
+            dom_currentRoom = data.room;
+            this.disableSending(false)
+            console.log(`Chat accepted. Joined room: ${dom_currentRoom}`);
+            this.removeTypingIndicator();
+            this.appendMessage('Noti', `Nhân viên đã kết nối với bạn ở phòng: ${dom_currentRoom || ""}`);
+
+            // document.getElementById("room").value = dom_currentRoom;
+            // console.log(`Chat accepted. Joined room: ${currentRoom}`);
+        });
+        socket.on("new_message", (data) => {
+            console.log("New message:", data);
+            console.log(`New message: ${data?.message || ""}`);
+
+            let from = data.from
+            if (from == dom_session_client_id) {
+                this.appendMessage('You', `${data.message || ""}`);
+            } else {
+                function callback() {
+                    this.appendMessage('Bot', `${data.message || ""}`);
+                }
+                this.showTypingState(callback.bind(this))
+            }
+            // Hiển thị ra UI
+        });
+        socket.on("admin_disconnected", (data) => {
+            log(`Admin disconnected from room ${data.room}.`);
+            if (currentRoom === data.room) {
+                dom_currentRoom = null;
+                dom_session_client_id = null
+                // document.getElementById("room").value = "";
+            }
+        });
+
+        socket.on("user_disconnected", (data) => {
+            log(`User disconnected from room ${data.room}.`);
+        });
+        socket.on("timeout_waiting", (data) => {
+            this.disconnect()
+            this.appendMessage('Noti', data.message || "⏰ Không có nhân viên đang trực tuyến.");
+            console.log(data.message)
+        });
+    }
+
+    autoScroll() {
+        setTimeout(() => {
+            const messagesDiv = this.shadowRoot.querySelector('#messages');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }, 0);
     }
 
 }
