@@ -21,6 +21,8 @@ class ChatBot extends HTMLElement {
         this.positionBottom = this.getAttribute('position-bottom') || '80px';
         this.positionRight = this.getAttribute('position-right') || '20px';
         this.chatHistory = [];
+        this.socket_url =  this.getAttribute('socket-url') || 'https://api.alfinac.com:5002';
+        this.socket_path =  this.getAttribute('socket-path') ||'/lepus-socket-io/socket';
         this.chat_with_staff = false;
         this.socket = null;
         this.currentRoom = null;
@@ -686,8 +688,8 @@ class ChatBot extends HTMLElement {
             auth.token = token;
         }
 
-        this.socket = io("https://api.alfinac.com:5002", {
-            path: "/lepus-socket-io/socket",
+        this.socket = io(this.socket_url, {
+            path: this.socket_path,
             auth: auth,
             transports: ['websocket'],
             cors: {
@@ -721,9 +723,6 @@ class ChatBot extends HTMLElement {
             console.log(`Chat accepted. Joined room: ${dom_currentRoom}`);
             this.removeTypingIndicator();
             this.appendMessage('Noti', `Nhân viên đã kết nối với bạn ở phòng: ${dom_currentRoom || ""}`);
-
-            // document.getElementById("room").value = dom_currentRoom;
-            // console.log(`Chat accepted. Joined room: ${currentRoom}`);
         });
         socket.on("new_message", (data) => {
             console.log("New message:", data);
@@ -738,17 +737,14 @@ class ChatBot extends HTMLElement {
                 }
                 this.showTypingState(callback.bind(this))
             }
-            // Hiển thị ra UI
         });
         socket.on("admin_disconnected", (data) => {
             log(`Admin disconnected from room ${data.room}.`);
             if (currentRoom === data.room) {
                 dom_currentRoom = null;
                 dom_session_client_id = null
-                // document.getElementById("room").value = "";
             }
         });
-
         socket.on("user_disconnected", (data) => {
             log(`User disconnected from room ${data.room}.`);
         });
