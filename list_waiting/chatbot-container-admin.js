@@ -314,28 +314,45 @@ class ChatBot extends HTMLElement {
                     box-shadow: none;
                     padding: 0;
                 }
-
+                .user-item {
+                    padding: 10px;
+                    border: 1px solid #eee;
+                    border-radius: 8px;
+                    margin-bottom: 8px;
+                    cursor: pointer;
+                    transition: background 0.2s;
+                }
+                .user-item:hover {
+                    background: #f5f5f5;
+                }
             </style>
 
             <button class="action-button" style="z-index: 9999999999" id="toggleChatBtn">💬</button>
             <div class="chat-container" style="z-index: 9999999999;" id="chatContainer">
+                
                <div class="chat-header">
-                    Alfinac AI Assistant
+                    Admin
                     <div class="menu-wrapper">
                         <button class="menu-button" id="menuBtn">⋮</button>
                         <div class="menu-dropdown" id="menuDropdown">
-                            <div class="menu-item" id="chatWithStaff">💬 Chat với nhân viên</div>
-                            <div class="menu-item" id="endChatWithStaff" style="display: none">❌ Kết thúc với nhân viên</div>
+                            <div class="menu-item" id="showUserList">📋 Danh sách khách hàng</div>
+<!--                            <div class="menu-item" id="chatWithStaff">💬 Chat với nhân viên</div>-->
+<!--                            <div class="menu-item" id="endChatWithStaff" style="display: none">❌ Kết thúc với nhân viên</div>-->
                         </div>
                     </div>
-                    <button class="close-button" style="color: #ff0063" id="closeBtn">✕</button>
+                    <button class="close-button" style="color: #ff0063;display: none" id="closeBtn">✕</button>
+                </div>
+                <div class="user-list-container" id="userList" style="flex: 1; overflow-y: auto; padding: 10px;">
+                    <div class="user-item" data-room="room_1">👩‍💼 Nhân viên Mai</div>
+                    <div class="user-item" data-room="room_2">👨‍💼 Nhân viên Quang</div>
+                    <div class="user-item" data-room="room_3">👨‍💻 Nhân viên Hùng</div>
                 </div>
                 <div class="chat-messages" id="messages">
-                <div class="message message-bot">
-                    <div class="message-bubble">Chào bạn, mình là Alfinac AI Assistant bạn cần tôi giúp gì?</div>
+                    <div class="message message-bot" style="">
+                        <div class="message-bubble"></div>
+                    </div>
                 </div>
-                </div>
-                <div class="chat-input">
+                <div class="chat-input" id="btnSend">
                     <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 từ)..."/>
                     <button id="sendBtn">Gửi</button>
                 </div>
@@ -355,35 +372,40 @@ class ChatBot extends HTMLElement {
         menuBtn.addEventListener('click', () => {
             menuDropdown.style.display = menuDropdown.style.display === 'block' ? 'none' : 'block';
         });
-        const chatWithStaff = this.shadowRoot.querySelector('#chatWithStaff');
-        const endChatWithStaff = this.shadowRoot.querySelector('#endChatWithStaff');
-        let dom_chat_with_staff = this.chat_with_staff;
+
+        const userListContainer = this.shadowRoot.querySelector('#userList');
+        const messagesList = this.shadowRoot.querySelector('#messages');
+        const btnSend = this.shadowRoot.querySelector('#btnSend');
+
+        // const userListContainer = this.shadowRoot.querySelector('#userList');
+        userListContainer.querySelectorAll('.user-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const room = item.getAttribute('data-room');
+                this.currentRoom = room;
+                // Ẩn danh sách user
+                userListContainer.style.display = 'none';
+                // Hiện chat UI
+                messagesList.style.display = 'block';
+                btnSend.style.display = '';
+
+                messagesList.innerHTML = '';
 
 
-        endChatWithStaff.addEventListener('click', () => {
-            this.disconnect()
+                this.appendMessage('Noti', `💬 Bắt đầu chat với nhân viên tại phòng ${room}`);
+
+                // Gọi connect socket nếu cần
+                // this.connect();
+            });
         });
+        const showUserList = this.shadowRoot.querySelector('#showUserList');
+        messagesList.style.display = 'none';
+        btnSend.style.display = 'none';
 
-
-        chatWithStaff.addEventListener('click', () => {
+        showUserList.addEventListener('click', () => {
             menuDropdown.style.display = 'none';
-            dom_chat_with_staff = true
-            if (dom_chat_with_staff) {
-                this.disableSending(true)
-                endChatWithStaff.style.display = 'block';
-                chatWithStaff.style.display = 'none';
-                this.showTypingIndicatorWithText("Đang kết nối với nhân viên");
-
-                setTimeout(() => {
-                    this.connect()
-                }, 2000);
-
-            } else {
-                endChatWithStaff.style.display = 'none';
-                chatWithStaff.style.display = 'block';
-            }
-
-            console.log('Đang chat với nhân viên:', dom_chat_with_staff);
+            this.shadowRoot.querySelector('.chat-messages').style.display = 'none';
+            this.shadowRoot.querySelector('.chat-input').style.display = 'none';
+            userListContainer.style.display = 'block';
         });
 
 
@@ -654,16 +676,11 @@ class ChatBot extends HTMLElement {
             auth.token = token;
         }
 
-        this.socket = io("https://api.alfinac.com:5002", {
+        this.socket = io("http://localhost:8001", {
             path: "/lepus-socket-io/socket",
             auth: auth,
-            transports: ['websocket'],
-            cors: {
-                origin: "*", // hoặc whitelist domain
-                methods: ["GET", "POST"]
-            }
+            transports: ['websocket']
         });
-
         let socket = this.socket
         let dom_session_client_id
         socket.on("connect", () => {

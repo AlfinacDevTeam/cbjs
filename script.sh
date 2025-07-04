@@ -1,4 +1,4 @@
-cat > chatbot-socket-io.js <<'EOF'
+cat > chatbot-path.js <<'EOF'
 class ChatBot extends HTMLElement {
     constructor() {
         super();
@@ -21,16 +21,8 @@ class ChatBot extends HTMLElement {
         this.chatHeight = this.getAttribute('chat-height') || '450px';
         this.positionBottom = this.getAttribute('position-bottom') || '80px';
         this.positionRight = this.getAttribute('position-right') || '20px';
+        this.chatHistory = [];
         this.render();
-        // Thêm script socket.io sau khi render xong
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/gh/AlfinacDevTeam/cbjs@socket-io/socket/socket.io.min.js';
-        script.type = 'text/javascript';
-        script.onload = () => {
-            console.log('Socket.IO script loaded successfully');
-        };
-        document.head.appendChild(script); // ✅ dùng document.head
-
     }
 
     render() {
@@ -276,14 +268,8 @@ class ChatBot extends HTMLElement {
 
             <button class="action-button" style="z-index: 9999999999" id="toggleChatBtn">💬</button>
             <div class="chat-container" style="z-index: 9999999999;" id="chatContainer">
-               <div class="chat-header">
+                <div class="chat-header">
                     Alfinac AI Assistant
-                    <div class="menu-wrapper">
-                        <button class="menu-button" id="menuBtn">⋮</button>
-                        <div class="menu-dropdown" id="menuDropdown">
-                            <div class="menu-item" id="chatWithStaff">💬 Chat với nhân viên</div>
-                        </div>
-                    </div>
                     <button class="close-button" style="color: #ff0063" id="closeBtn">✕</button>
                 </div>
                 <div class="chat-messages" id="messages">
@@ -347,20 +333,30 @@ class ChatBot extends HTMLElement {
             if (!server_url)
                 return alert("server_url not provide")
             const endpoint = `${server_url}/llm/api/v2/ask-bee`;
+            let clientIP = ""
+            try {
+                const ipRes = await fetch("https://checkip.amazonaws.com");
+                clientIP = (await ipRes.text()).trim(); // ví dụ: "118.69.217.191"
+            } catch (err) {
+
+            }
             const responseRM = fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: 'Bearer ' + this.access_token,
+                    "x-forwarded-for": clientIP
                 },
                 body: JSON.stringify({
                     question: message,
                     model_type: this?.model_type || "alfinac",
                     user_bfs: this?.user_bfs || null,
                     chat_session_id: this.session_chatbot,
-                    history: [],
+                    history: this.chatHistory
                 }),
             });
+            this.chatHistory.push({role: 'user', content: message});
+
             let textQueue = [];
             let typing = false;
 
@@ -418,6 +414,7 @@ class ChatBot extends HTMLElement {
                     this.removeTypingIndicator();
                     this.appendMessage('Bot', 'Không nhận được phản hồi từ server.');
                 } else {
+                    this.chatHistory.push({role: 'assistant', content: botMessageDiv.innerText});
                     this.isSending = false;
                     input.disabled = false;
                     sendBtn.disabled = false;
