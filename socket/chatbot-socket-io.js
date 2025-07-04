@@ -369,15 +369,14 @@ class ChatBot extends HTMLElement {
             menuDropdown.style.display = 'none';
             dom_chat_with_staff = true
             if (dom_chat_with_staff) {
-                this.disableSending(true)
-                endChatWithStaff.style.display = 'block';
-                chatWithStaff.style.display = 'none';
-                this.showTypingIndicatorWithText("Đang kết nối với nhân viên");
-
-                setTimeout(() => {
-                    this.connect()
-                }, 2000);
-
+               function callbackConnect() {
+                   this.disableSending(true)
+                   endChatWithStaff.style.display = 'block';
+                   chatWithStaff.style.display = 'none';
+                   // this.showTypingIndicatorWithText("Đang kết nối với nhân viên");
+                   this.showWaitingCountdown(300);
+               }
+                this.connect(callbackConnect.bind(this))
             } else {
                 endChatWithStaff.style.display = 'none';
                 chatWithStaff.style.display = 'block';
@@ -600,6 +599,39 @@ class ChatBot extends HTMLElement {
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
+    showWaitingCountdown(durationSeconds) {
+        const messagesDiv = this.shadowRoot.querySelector('#messages');
+        this.removeTypingIndicator();
+
+        const typingElem = document.createElement('div');
+        typingElem.className = 'message message-typing';
+        typingElem.id = 'typing-indicator';
+
+        // Tạo phần tử hiển thị countdown
+        let remaining = durationSeconds;
+        const countdownSpan = document.createElement('span');
+        countdownSpan.textContent = `(${Math.floor(remaining / 60)}:${(remaining % 60).toString().padStart(2, '0')})`;
+
+        // Hiển thị đoạn văn bản ban đầu
+        const messageBubble = document.createElement('div');
+        messageBubble.className = 'message-bubble';
+        messageBubble.style.whiteSpace = "normal";
+        messageBubble.innerHTML = `Đang kết nối với nhân viên... <br>`;
+        messageBubble.appendChild(countdownSpan);
+
+        typingElem.appendChild(messageBubble);
+        messagesDiv.appendChild(typingElem);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+        // Đếm ngược
+        const intervalId = setInterval(() => {
+            remaining--;
+            countdownSpan.textContent = `(${Math.floor(remaining / 60)}:${(remaining % 60).toString().padStart(2, '0')})`;
+        }, 1000);
+        // Ghi lại intervalId để xóa nếu cần
+        typingElem.setAttribute('data-interval-id', intervalId);
+    }
+
 
     removeTypingIndicator() {
         const typingElem = this.shadowRoot.querySelector('#typing-indicator');
@@ -648,7 +680,7 @@ class ChatBot extends HTMLElement {
         this.currentRoom = null;
     }
 
-    connect(token) {
+    connect(callBackConnect,token) {
         const auth = {};
         if (token) {
             auth.token = token;
@@ -669,6 +701,7 @@ class ChatBot extends HTMLElement {
         socket.on("connect", () => {
             console.log(`✅ Connected with id ${socket.id}`);
             dom_session_client_id = socket.id;
+            callBackConnect()
         });
 
         socket.on("receive_message", (data) => {
