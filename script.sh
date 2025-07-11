@@ -1,113 +1,46 @@
-cat > client-sloop.js <<'EOF'
+cat > webview-client.js <<'EOF'
 class ChatBot extends HTMLElement {
-  constructor() {
-    super();
-  }
-
-  connectedCallback() {
-    this.attachShadow({ mode: "open" });
-    this.serverUrl = "https://api.alfinac.com:5002/lepus-gpt";
-    this.access_token = this.getAttribute("access-token");
-    this.user_bfs = this.getAttribute("user-bfs");
-    this.model_type = this.getAttribute("model-type") || "bee";
-    this.session_chatbot = ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(
-      /[018]/g,
-      (c) =>
-        (
-          c ^
-          (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))
-        ).toString(16)
-    );
-    this.isChatVisible = this.getAttribute("chat-visible") !== "N";
-    this.avatarBot = this.getAttribute("avatar-bot");
-
-    let dataInfoUser = this.getAttribute("info-user");
-    this.infoUser = dataInfoUser ? JSON.parse(dataInfoUser) : null;
-
-    this.isSending = false;
-    this.primaryColor = this.getAttribute("primary-color") || "#FF6F00";
-    this.chatWidth = this.getAttribute("chat-width") || "320px";
-    this.margin = this.getAttribute("margin") || "0px";
-    this.chatHeight = this.getAttribute("chat-height") || "450px";
-    this.positionBottom = this.getAttribute("position-bottom") || "80px";
-    this.positionRight = this.getAttribute("position-right") || "20px";
-    this.chatHistory = [];
-    this.socket_url =
-      this.getAttribute("socket-url") || "https://api.alfinac.com:5002";
-    this.socket_path =
-      this.getAttribute("socket-path") || "/lepus-socket-io/socket";
-    this.chat_with_staff = false;
-    this.socket = null;
-    this.currentRoom = null;
-    this.visitor_id = null;
-
-    this.flagChatStaff = false;
-
-    // Thêm script socket.io sau khi render xong
-    setTimeout(async () => {
-      await this.addScript(
-        "https://static.alfinac.com:5002/chatbot/socket.io.min.js"
-      );
-      await this.addScript(
-        "https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"
-      );
-      const fp = await FingerprintJS.load();
-      const result = await fp.get();
-      const visitor_id = btoa(result.visitorId + "_" + this.getDataStr());
-      //   console.log("visitorId:", visitor_id);
-      sessionStorage.setItem("visitor_id", visitor_id);
-      this.visitor_id = visitor_id;
-      this.render();
-    }, 1);
-  }
-
-  getDataStr() {
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, "0");
-    const dd = String(now.getDate()).padStart(2, "0");
-    return `${yyyy}_${mm}_${dd}`;
-  }
-
-  setStore(key, data, hours = 6) {
-    const now = Date.now();
-    const expiresAt = now + hours * 60 * 60 * 1000;
-
-    localStorage.setItem(key, JSON.stringify([data, expiresAt]));
-  }
-
-  getStore(key) {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    try {
-      const data = JSON.parse(raw);
-      if (Date.now() > data[1]) {
-        localStorage.removeItem(key);
-        return null;
-      }
-      return data[0];
-    } catch (e) {
-      console.warn("Invalid visitor_info format");
-      return null;
+    constructor() {
+        super();
     }
-  }
 
-  addScript(url) {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = url;
-      script.type = "text/javascript";
-      script.onload = () => {
-        // console.info(`Loading script ${url} successfully!`);
-        resolve();
-      };
-      script.onerror = () => reject(new Error(`Failed to load script: ${url}`));
-      document.head.appendChild(script);
-    });
-  }
+    connectedCallback() {
+        this.attachShadow({mode: 'open'});
+        this.serverUrl = this.getAttribute('server-url');
+        this.access_token = this.getAttribute('access-token');
+        this.user_bfs = this.getAttribute('user-bfs');
+        this.model_type = this.getAttribute('model-type') || "bee";
+        this.session_chatbot = ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+            (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+        );
+        this.isChatVisible = this.getAttribute('chat-visible') !== "N";
+        this.isSending = false;
+        this.primaryColor = this.getAttribute('primary-color') || '#FF6F00';
+        this.chatWidth = this.getAttribute('chat-width') || '320px';
+        this.margin = this.getAttribute('margin') || '0px';
+        this.chatHeight = this.getAttribute('chat-height') || '450px';
+        this.positionBottom = this.getAttribute('position-bottom') || '80px';
+        this.positionRight = this.getAttribute('position-right') || '20px';
+        this.chatHistory = [];
+        this.socket_url = this.getAttribute('socket-url') || 'https://api.alfinac.com:5002';
+        this.socket_path = this.getAttribute('socket-path') || '/lepus-socket-io/socket';
+        this.chat_with_staff = false;
+        this.socket = null;
+        this.currentRoom = null;
+        this.render();
+        // Thêm script socket.io sau khi render xong
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/gh/AlfinacDevTeam/cbjs@socket-io/socket/socket.io.min.js';
+        script.type = 'text/javascript';
+        script.onload = () => {
+            console.log('Socket.IO script loaded successfully');
+        };
+        document.head.appendChild(script); // ✅ dùng document.head
 
-  render() {
-    this.shadowRoot.innerHTML = `
+    }
+
+    render() {
+        this.shadowRoot.innerHTML = `
             <style>
                 :host {
                     --primary-color: ${this.primaryColor};
@@ -119,28 +52,10 @@ class ChatBot extends HTMLElement {
                     --pmr-color: orange;
                 }
 
-                *::-webkit-scrollbar {
-                  width: 5px;
-                  height: 4px;
-                  background-color: transparent;
-                  border-radius: 100px;
-                }
-
-                *::-webkit-scrollbar-thumb {
-                  background: #dfdcdc;
-                  border-radius: 100px;
-                }
-
-                input:-webkit-autofill {
-                  -webkit-box-shadow: 0 0 0 1000px #DEE2E6 inset !important;
-                  -webkit-text-fill-color: #1a1a1a !important;
-                  transition: background-color 5000s ease-in-out 0s;
-                }
-
                 .action-button {
                     position: fixed;
                     bottom: 30px;
-                    display:${this.isChatVisible ? "none" : "flex"} ;
+                    display:${this.isChatVisible ? 'none' : 'flex'} ;
                     right: var(--position-right);
                     width: 50px;
                     height: 50px;
@@ -176,23 +91,20 @@ class ChatBot extends HTMLElement {
                     height: var(--chat-height);
                     max-height: 100%;
                     /*border-radius: 12px;*/
-                    background: transparent;
+                    background: white;
                     box-shadow: 0 4px 16px rgba(0,0,0,0.2);
                     display: flex;
                     flex-direction: column;
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     overflow: hidden;
                     z-index: 999;
-                    opacity: ${this.isChatVisible ? "1" : "0"};
-                    transform: ${
-                      this.isChatVisible ? "scale(1)" : "scale(0.8)"
-                    };
-                    visibility: ${this.isChatVisible ? "visible" : "hidden"};
+                    opacity: ${this.isChatVisible ? '1' : '0'};
+                    transform: ${this.isChatVisible ? 'scale(1)' : 'scale(0.8)'};
+                    visibility: ${this.isChatVisible ? 'visible' : 'hidden'};
                     transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease;
                 }
 
                 .chat-header {
-                    display: none;
                     padding: 12px;
                     background: var(--primary-color);
                     border-bottom: 1px solid #e0e0e0;
@@ -223,16 +135,14 @@ class ChatBot extends HTMLElement {
 
                 .chat-messages {
                     flex: 1;
-                    padding: 12px 35px;
+                    padding: 12px;
                     overflow-y: auto;
-                    background: transparent;
+                    background: #ffffff;
                     scroll-behavior: smooth;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 42px;
                 }
 
                 .message {
+                    margin-bottom: 12px;
                     display: flex;
                     flex-direction: column;
                 }
@@ -247,208 +157,33 @@ class ChatBot extends HTMLElement {
 
                 .message-bubble {
                     max-width: 70%;
-                    padding: 20px;
-                    border-radius: 16px;
+                    padding: 8px 12px;
+                    border-radius: 12px;
                     font-size: 14px;
-                    font-weight: 600,
                     line-height: 1.4;
                     word-wrap: break-word;
                     white-space: pre-wrap;
                 }
 
                 .message-you .message-bubble {
-                    background: #DEE2E6;
-                    color: #1C1C1C;
-                    border: 1px solid #DEE2E6
-                    box-shadow: rgba(0, 0, 0, 0.15) 0px 3px 3px 0px;
-                    border-bottom-right-radius: 0px;
-                    position: relative;
-                    z-index: 2;
-                }
-
-                .message-you .message-bubble::before {
-                    content: "";
-                    position: absolute;
-                    bottom: 0;
-                    right: 0;
-                    width: 35px;
-                    height: 25px;
-                    z-index: 1;
-                    transform: translate(0, 80%);
-                    background-image: url("data:image/svg+xml;utf8,\
-                        <svg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none' viewBox='0 0 200 200'>\
-                        <path d='M 200 0 L 0 0 L 180 185 Q 200 200 200 170 Z' fill='%23DEE2E6'/></svg>");
-                    background-repeat: no-repeat;
-                    background-size: contain;
-                    pointer-events: none;
-                }
-
-                .message-you .message-bubble::after {
-                    position: absolute;
-                    bottom: 0;
-                    right: 0;
-                    width: 48px;
-                    height: 48px;
-                    transform: translate(40%, 100%);
-                    z-index: 3;
-                    border-radius: 500px;
-                    background-color: #111827;
-                    ${
-                      !!this.infoUser.avatar
-                        ? `
-                            content: "";
-                            background-image: url("${this.infoUser.avatar}");
-                            background-repeat: no-repeat;
-                            background-size: contain;
-                            pointer-events: none;
-                            background-size: 70%;
-                            background-position: center;
-                          `
-                        : `
-                            content: "${this.infoUser.name}";
-                            color: white;
-                            display: flex;
-                            font-size: 18px;
-                            align-items: center;
-                            justify-content: center;
-                          `
-                    }
-
+                    background: #e9ecef;
+                    color: #333;
+                    border-bottom-left-radius: 4px;
                 }
 
                 .message-bot .message-bubble {
                     background: var(--primary-color);
                     color: white;
-                    border-bottom-left-radius: 0px;
-                    position: relative;
-                    z-index: 2;
+                    border-bottom-right-radius: 4px;
                 }
-
-                .message-bot .message-bubble::before {
-                    content: "";
-                    position: absolute;
-                    bottom: 0;
-                    left: 0;
-                    width: 35px;
-                    height: 25px;
-                    z-index:1;
-                    transform: translate(0, 80%);
-                    background-image: url("data:image/svg+xml;utf8,\
-                        <svg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none' viewBox='0 0 200 200'>\
-                        <path d='M0 0 L200 0 L40 170 Q0 200 0 150 Z' fill='%23DF761D'/></svg>");
-                    background-repeat: no-repeat;
-                    background-size: contain;
-                    pointer-events: none;
-                }
-
-               .message-bot .message-bubble::after {
-                    position: absolute;
-                    bottom: 0;
-                    left: 0;
-                    width: 48px;
-                    height: 48px;
-                    transform: translate(-40%, 100%);
-                    z-index: 3;
-                    border-radius: 500px;
-                    background-color: #F58220;
-                    ${
-                      this.flagChatStaff
-                        ? `
-                            content: "AD";
-                            color: white;
-                            display: flex;
-                            font-size: 18px;
-                            align-items: center;
-                            justify-content: center;
-                          `
-                        : this.avatarBot
-                        ? `
-                            content: "";
-                            background-image: url("${this.avatarBot}");
-                            background-repeat: no-repeat;
-                            background-position: center;
-                            background-size: 70%;
-                            pointer-events: none;
-                          `
-                        : `
-                            content: "BOT";
-                            color: white;
-                            display: flex;
-                            font-size: 18px;
-                            align-items: center;
-                            justify-content: center;
-                          `
-                    }
-                }
-
 
                 .message-typing .message-bubble {
                     background: var(--primary-color);
                     color: white;
-                    border-bottom-left-radius: 0px;
+                    border-bottom-right-radius: 4px;
                     display: flex;
                     align-items: center;
-                    padding: 20px;
-                    position: relative;
-                    z-index:2;
-                }
-
-                .message-typing .message-bubble::before {
-                    content: "";
-                    position: absolute;
-                    bottom: 0;
-                    left: 0;
-                    width: 35px;
-                    height: 25px;
-                    z-index:1;
-                    transform: translate(0, 80%);
-                    background-image: url("data:image/svg+xml;utf8,\
-                        <svg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none' viewBox='0 0 200 200'>\
-                        <path d='M0 0 L200 0 L40 170 Q0 200 0 150 Z' fill='%23DF761D'/></svg>");
-                    background-repeat: no-repeat;
-                    background-size: contain;
-                    pointer-events: none;
-                }
-
-                 .message-typing .message-bubble::after {
-                    content: "";
-                    position: absolute;
-                    bottom: 0;
-                    left: 0;
-                    width: 48px;
-                    height: 48px;
-                    transform: translate(-40%, 100%);
-                    z-index: 3;
-                    border-radius: 500px;
-                    background-color: #F58220;
-                   ${
-                     this.flagChatStaff
-                       ? `
-                            content: "AD";
-                            color: white;
-                            display: flex;
-                            font-size: 18px;
-                            align-items: center;
-                            justify-content: center;
-                          `
-                       : this.avatarBot
-                       ? `
-                            content: "";
-                            background-image: url("${this.avatarBot}");
-                            background-repeat: no-repeat;
-                            background-position: center;
-                            background-size: 70%;
-                            pointer-events: none;
-                          `
-                       : `
-                            content: "BOT";
-                            color: white;
-                            display: flex;
-                            font-size: 18px;
-                            align-items: center;
-                            justify-content: center;
-                          `
-                   }
+                    padding: 8px;
                 }
 
                 .message-error .message-bubble {
@@ -483,11 +218,6 @@ class ChatBot extends HTMLElement {
                     }
                 }
 
-                .chat-input-container {
-                  background: white;
-                  padding: 15px 20px
-                }
-
                 .chat-input {
                     display: flex;
                     border-top: 1px solid #e0e0e0;
@@ -495,24 +225,13 @@ class ChatBot extends HTMLElement {
                     flex-shrink: 0;
                 }
 
-                .chat-input {
-                    background: #DEE2E6;
-                    display: flex;
-                    align-items: center;
-                    padding: 0 12px;
-                    flex-shrink: 0;
-                    gap: 4px;
-                    border-radius: 16px
-                }
-
                 .chat-input input {
                     flex: 1;
-                    padding: 18px 8px;
-                    border-radius: 16px;
+                    padding: 12px;
                     border: none;
                     outline: none;
                     font-size: 14px;
-                    background: #DEE2E6;
+                    background: #ffffff;
                     color: #1a1a1a;
                 }
                 .message-bubble:empty {
@@ -527,23 +246,23 @@ class ChatBot extends HTMLElement {
                 }
 
                 .chat-input button {
-                    flex-shrink: 0;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
+                    padding: 12px 16px;
                     border: none;
-                    border: none;
+                    background: var(--primary-color);
                     color: white;
                     cursor: pointer;
+                    font-size: 14px;
                     transition: background 0.2s;
-                    background: transparent;
                 }
 
                 .chat-input button:disabled {
-                    background: transparent;
+                    background: #cccccc;
                     cursor: not-allowed;
                 }
 
+                .chat-input button:hover:not(:disabled) {
+                    background: color-mix(in srgb, var(--primary-color) 90%, black);
+                }
                 .menu-wrapper {
                     position: absolute;
                     right: 36px;
@@ -586,14 +305,10 @@ class ChatBot extends HTMLElement {
                 }
 
                 .message-noti {
-                  width: 100%;
-                  display: flex;
-                  flex-direction: column;
-                  align-items: center;
-                  justify-content: center;
-                  font-size: 13px;
-                  color: #888;
-                  text-align: center;
+                    justify-content: center;
+                    font-size: 13px;
+                    color: #888;
+                    text-align: center;
                 }
 
                 .message-noti .message-bubble {
@@ -601,593 +316,667 @@ class ChatBot extends HTMLElement {
                     color: #888;
                     box-shadow: none;
                     padding: 0;
+                }
+
+                .file-input {
+                    display: none;
+                }
+
+                .file-button {
+                    background: none !important;
+                    color: white !important;
+                    border-radius: 50%;
+                    cursor: pointer;
+                }
+                .file-button:hover {
+                    background: rgba(0,0,0,0.11) !important;
+                }
+                .file-name-display {
+                    bottom: 100%; /* nằm trên nút */
+                    background: #fff;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    font-size: 11px;
+                    color: #333;
+                    white-space: nowrap;
+                    max-width: 120px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
                     text-align: center;
+                    margin-bottom: 4px;
+                    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+                }
+                .file-remove-button {
+                    bottom: 100%; /* nằm trên nút */
+                    background: #fff;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    font-size: 11px;
+                    color: #333;
+                    white-space: nowrap;
+                    max-width: 120px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    text-align: center;
+                    margin-bottom: 4px;
+                    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+                }
+                .file-input-wrapper {
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                    margin-right: 8px;
                 }
 
-                .message-noti .timestamp {
-                  margin-left: 0px !important;
+                .file-name-container {
+                    position: absolute;
+                    bottom: 100%;
+                    display: flex;
+                    align-items: center;
+                    background: #fff;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    margin-bottom: 4px;
+                    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+                    max-width: 150px;
+                    overflow: hidden;
                 }
-
+                .file-remove-button:hover {
+                    color: red;
+                }
             </style>
 
             <button class="action-button" style="z-index: 9999999999" id="toggleChatBtn">💬</button>
-            <div class="chat-container" style="z-index: 9999999999;" id="chatContainer">
+            <div class="chat-container" style="z-index: 9999999999;overflow: auto" id="chatContainer">
                <div class="chat-header">
                     Alfinac AI Assistant
                     <div class="menu-wrapper">
                         <button class="menu-button" id="menuBtn">⋮</button>
                         <div class="menu-dropdown" id="menuDropdown">
+                            <div class="menu-item" id="chatWithAI">💬 Chat với AI</div>
                             <div class="menu-item" id="chatWithStaff">💬 Chat với nhân viên</div>
                             <div class="menu-item" id="endChatWithStaff" style="display: none">❌ Kết thúc với nhân viên</div>
+                            <div class="menu-item" id="flowbot">Quy trình</div>
                         </div>
                     </div>
                     <button class="close-button" style="color: #ff0063" id="closeBtn">✕</button>
                 </div>
+                <div id="chatflow_container" style="display: none">
+
+                </div>
                 <div class="chat-messages" id="messages">
                     <div class="message message-bot">
-                        <div class="message-bubble">Chào bạn, mình là Bee AI Assistant bạn cần tôi giúp gì?</div>
+                        <div class="message-bubble">Chào bạn, mình là Alfinac AI Assistant bạn cần tôi giúp gì?</div>
+                    </div>
+                    <div id="botflow_container" class="message message-bot">
+
                     </div>
                 </div>
-                <div class="chat-input-container">
-                  <div class="chat-input">
-                    <input id="messageInput" maxlength="200" placeholder="Type your message here..."/>
-                    <button id="sendBtn">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
-                        <path d="M9.51002 4.23001L18.07 8.51001C21.91 10.43 21.91 13.57 18.07 15.49L9.51002 19.77C3.75002 22.65 1.40002 20.29 4.28002 14.54L5.15002 12.81C5.37002 12.37 5.37002 11.64 5.15002 11.2L4.28002 9.46001C1.40002 3.71001 3.76002 1.35001 9.51002 4.23001Z" stroke="#4361EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M5.43994 12H10.8399" stroke="#4361EE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                      </svg>
-                    </button>
-                  </div>
+                <div class="chat-input" id="chat_input_container">
+                    <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 từ)..."/>
+                    <div class="file-input-wrapper" >
+                        <div class="file-name-container" id="file-container" style="display: none">
+                            <span class="file-remove-button" id="removeFileBtn" title="Xoá file">✕</span>
+                                <span class="file-name-display" id="fileNameDisplay"></span>
+                        </div>
+<!--                        <input type="file" id="fileInput" class="file-input" multiple>-->
+                        <input type="file" id="fileInput" class="file-input" >
+                        <span class="file-button" id="fileBtn">📎</span>
+                    </div>
+                    <button id="sendBtn">Gửi</button>
                 </div>
                 <input id="hidden_history" type="hidden" value="[]">
             </div>
         `;
-    this.autoScroll();
+        this.autoScroll()
+        this.shadowRoot.querySelector('#toggleChatBtn').addEventListener('click', () => this.toggleChat());
+        this.shadowRoot.querySelector('#closeBtn').addEventListener('click', () => this.toggleChat());
+        this.shadowRoot.querySelector('#sendBtn').addEventListener('click', () => this.sendMessage());
+        this.shadowRoot.querySelector('#messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.sendMessage();
+        });
 
-    this.shadowRoot
-      .querySelector("#toggleChatBtn")
-      .addEventListener("click", () => this.toggleChat());
-    this.shadowRoot
-      .querySelector("#closeBtn")
-      .addEventListener("click", () => this.toggleChat());
-    this.shadowRoot
-      .querySelector("#sendBtn")
-      .addEventListener("click", () => this.sendMessage());
-    this.shadowRoot
-      .querySelector("#messageInput")
-      .addEventListener("keypress", (e) => {
-        if (e.key === "Enter") this.sendMessage();
-      });
-    // Xử lý mở/tắt dropdown
-    const menuBtn = this.shadowRoot.querySelector("#menuBtn");
-    const menuDropdown = this.shadowRoot.querySelector("#menuDropdown");
-    menuBtn.addEventListener("click", () => {
-      menuDropdown.style.display =
-        menuDropdown.style.display === "block" ? "none" : "block";
-    });
-    const chatWithStaff = this.shadowRoot.querySelector("#chatWithStaff");
-    const endChatWithStaff = this.shadowRoot.querySelector("#endChatWithStaff");
-    let dom_chat_with_staff = this.chat_with_staff;
+        // Thêm sự kiện cho nút chọn file
+        const fileInput = this.shadowRoot.querySelector('#fileInput');
+        const fileBtn = this.shadowRoot.querySelector('#fileBtn');
+        const removeFileBtn = this.shadowRoot.querySelector('#removeFileBtn');
+        const chat_input_container = this.shadowRoot.querySelector('#chat_input_container');
+        const messages = this.shadowRoot.querySelector('#messages');
+        const chatflow_container = this.shadowRoot.querySelector('#chatflow_container');
+        const fileContainer =this.shadowRoot.querySelector('#file-container')
+        fileBtn.addEventListener('click', () => {
+            fileInput.click(); // Mở hộp thoại chọn file khi nhấn nút
+        });
+        removeFileBtn.addEventListener('click', () => {
+            fileContainer.style.display = 'none';
+            fileInput.value = "";
+        });
+        fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
+        // Xử lý mở/tắt dropdown
+        const menuBtn = this.shadowRoot.querySelector('#menuBtn');
+        const menuDropdown = this.shadowRoot.querySelector('#menuDropdown');
+        const chatWithAI = this.shadowRoot.querySelector('#chatWithAI');
+        menuBtn.addEventListener('click', () => {
+            menuDropdown.style.display = menuDropdown.style.display === 'block' ? 'none' : 'block';
+        });
+        const chatWithStaff = this.shadowRoot.querySelector('#chatWithStaff');
+        const endChatWithStaff = this.shadowRoot.querySelector('#endChatWithStaff');
+        const flowbot = this.shadowRoot.querySelector('#flowbot');
+        let dom_chat_with_staff = this.chat_with_staff;
 
-    function handleDisconnect(parentThis) {
-      parentThis.flagChatStaff = false;
-      parentThis.disconnect();
-    }
 
-    function handleChatWithStaff(parentThis) {
-      parentThis.flagChatStaff = true;
-      menuDropdown.style.display = "none";
 
-      dom_chat_with_staff = true;
-      if (dom_chat_with_staff) {
-        function callbackConnect() {
-          parentThis.disableSending(true);
-          endChatWithStaff.style.display = "block";
-          chatWithStaff.style.display = "none";
-          parentThis.showWaitingCountdown(300);
-        }
+        flowbot.addEventListener('click', () => {
+            this.disconnect()
+            messages.style.display = 'none';
+            chat_input_container.style.display = 'none';
+            chatflow_container.style.display = '';
+            chatWithAI.style.display = '';
+            chatflow_container.innerHTML = `<iframe  src="http://botflow.alfinac.com:8081/main-flow-bee-vnrhn2s" style="border: none; width: 100%; height: 100vh"></iframe>`
 
-        parentThis.connect(
-          callbackConnect.bind(parentThis),
-          parentThis.visitor_id
-        );
-      } else {
-        endChatWithStaff.style.display = "none";
-        chatWithStaff.style.display = "block";
-      }
-      // console.log("Đang chat với nhân viên:", dom_chat_with_staff);
-    }
+        });
+        endChatWithStaff.addEventListener('click', () => {
+            chatflow_container.style.display = 'none';
+            messages.style.display = '';
+            chat_input_container.style.display = '';
+            this.disconnect()
+        });
 
-    endChatWithStaff.addEventListener("click", () => handleDisconnect(this));
-    chatWithStaff.addEventListener("click", () => handleChatWithStaff(this));
+        chatWithAI.addEventListener('click', () => {
+            chatflow_container.style.display = 'none';
+            messages.style.display = '';
+            chat_input_container.style.display = '';
+            this.disconnect()
+        });
 
-    const _this = this;
-    window.addEventListener("message", function (event) {
-      if (event.data?.type === "start-chat-staff") {
-        handleChatWithStaff(_this);
-      } else if (event.data?.type === "end-chat-staff") {
-        handleDisconnect(_this);
-      }
-    });
-  }
 
-  toggleChat() {
-    this.isChatVisible = !this.isChatVisible;
-    const chatContainer = this.shadowRoot.querySelector("#chatContainer");
-    const toggleChatBtn = this.shadowRoot.querySelector("#toggleChatBtn");
-    toggleChatBtn.style.display = this.isChatVisible ? "none" : "flex";
-    chatContainer.style.opacity = this.isChatVisible ? "1" : "0";
-    chatContainer.style.transform = this.isChatVisible
-      ? "scale(1)"
-      : "scale(0.8)";
-    chatContainer.style.visibility = this.isChatVisible ? "visible" : "hidden";
-  }
+        chatWithStaff.addEventListener('click', () => {
+            menuDropdown.style.display = 'none';
+            messages.style.display = '';
+            chat_input_container.style.display = '';
+            chatflow_container.style.display = 'none';
 
-  // Trong class ChatBot
-  async sendMessage() {
-    const input = this.shadowRoot.querySelector("#messageInput");
+            dom_chat_with_staff = true
+            if (dom_chat_with_staff) {
+                function callbackConnect() {
+                    this.disableSending(true)
+                    endChatWithStaff.style.display = 'block';
+                    chatWithStaff.style.display = 'none';
+                    // this.showTypingIndicatorWithText("Đang kết nối với nhân viên");
+                    this.showWaitingCountdown(300);
+                }
 
-    const message = input.value.trim();
-    if (this.socket != null) {
-      this.socket.emit("send_message", {
-        message: message,
-      });
-      input.value = "";
-      return;
-    }
-    if (this.isSending) return;
-
-    const sendBtn = this.shadowRoot.querySelector("#sendBtn");
-    if (!message) return;
-
-    // Vô hiệu hóa input và button
-    this.disableSending(true);
-
-    // Hiển thị tin nhắn người dùng
-    this.appendMessage("You", message);
-    input.value = "";
-
-    // Hiển thị 3 chấm nhảy
-    this.showTypingIndicator();
-
-    try {
-      if (!this.access_token) {
-        throw new Error("Token not provided");
-      }
-
-      let server_url = this.serverUrl;
-      if (!server_url) return alert("server_url not provide");
-      const endpoint = `${server_url}/llm/api/v2/ask-bee`;
-      const responseRM = fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + this.access_token,
-        },
-        body: JSON.stringify({
-          question: message,
-          model_type: this?.model_type || "alfinac",
-          user_bfs: this?.user_bfs || null,
-          chat_session_id: this.session_chatbot,
-          history: this.chatHistory,
-        }),
-      });
-      this.chatHistory.push({ role: "user", content: message });
-
-      let textQueue = [];
-      let typing = false;
-
-      const animateTyping = async (target, text) => {
-        textQueue.push(text);
-        if (typing) return; // Đã có animate đang chạy
-
-        typing = true;
-        while (textQueue.length > 0) {
-          const nextText = textQueue.shift();
-          for (let i = 0; i < nextText.length; i++) {
-            target.textContent += nextText[i];
-            await new Promise((resolve) => setTimeout(resolve, 10));
-          }
-        }
-        typing = false;
-      };
-
-      let { bubble: botMessageDiv, messageElem } = this.appendMessage(
-        "Bot",
-        "",
-        true
-      );
-      botMessageDiv.style.display = "none";
-
-      responseRM.then(async (response) => {
-        if (response.status === 401) {
-          this.removeTypingIndicator();
-          this.appendMessage(
-            "System",
-            "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại."
-          );
-          return;
-        }
-
-        if (!response.body) {
-          throw new Error("No response body");
-        }
-        botMessageDiv.style.display = "block";
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let buffer = "";
-        let isServerResponse = false;
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          buffer += chunk;
-
-          if (botMessageDiv) {
-            if (!isServerResponse) {
-              botMessageDiv.innerHTML = "";
+                this.connect(callbackConnect.bind(this))
+            } else {
+                endChatWithStaff.style.display = 'none';
+                chatWithStaff.style.display = 'block';
             }
-            isServerResponse = true;
-            await animateTyping(botMessageDiv, chunk);
-          }
-        }
 
-        if (!isServerResponse) {
-          this.removeTypingIndicator();
-          this.appendMessage("Bot", "Không nhận được phản hồi từ server.");
+            console.log('Đang chat với nhân viên:', dom_chat_with_staff);
+        });
+
+
+    }
+    handleFileSelect(event) {
+        const files = event.target.files;
+        const fileNameDisplay = this.shadowRoot.querySelector('#fileNameDisplay');
+        if (files.length > 0) {
+            const invalidFiles = Array.from(files).filter(file => !file.name.toLowerCase().endsWith('.pdf'));
+
+            if (invalidFiles.length > 0) {
+                alert("❌ Chỉ cho phép tải lên file định dạng PDF.");
+                // Reset lại input
+                event.target.value = '';
+                fileNameDisplay.textContent = '';
+                fileContainer.style.display = 'none';
+                return;
+            }
+            const fileList = Array.from(files).map(file => file.name).join(', ');
+            fileNameDisplay.textContent = fileList
+            this.shadowRoot.querySelector('#file-container').style.display = '';
+            // Logic xử lý file (ví dụ: gửi file lên server)
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const fileContent = e.target.result;
+                    console.log(`File ${file.name} loaded, size: ${file.size} bytes`);
+                };
+                reader.readAsDataURL(file);
+            });
         } else {
-          this.chatHistory.push({
-            role: "assistant",
-            content: botMessageDiv.innerText,
-          });
-          this.disableSending(false);
-          this.appendTimestamp(messageElem, "Bot");
+            this.shadowRoot.querySelector('#file-container').style.display = 'none';
+            fileNameDisplay.textContent = ''; // Xóa tên file nếu không có file được chọn
         }
-      });
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      this.removeTypingIndicator();
-      if (botMessageDiv) {
-        botMessageDiv.style.display = "block";
-        await animateTyping(
-          botMessageDiv,
-          `Mình đang tra cứu dữ liệu để trả lời câu hỏi *${message}*`
-        );
-      }
-    } catch (error) {
-      console.error("Stream error:", error);
-      this.removeTypingIndicator();
-      this.appendMessage("Error", "Không thể gửi tin nhắn: " + error.message);
-      this.disableSending(false);
     }
-  }
-
-  disableSending(state) {
-    const input = this.shadowRoot.querySelector("#messageInput");
-    const sendBtn = this.shadowRoot.querySelector("#sendBtn");
-    this.isSending = state;
-    input.disabled = state;
-    sendBtn.disabled = state;
-    input.focus();
-  }
-
-  appendMessage(sender, text, isStreaming = false, timestamp = null) {
-    const messagesDiv = this.shadowRoot.querySelector("#messages");
-    const messageElem = document.createElement("div");
-    messageElem.className = `message message-${sender.toLowerCase()}`;
-
-    const bubble = document.createElement("div");
-
-    bubble.className = "message-bubble";
-    bubble.innerHTML = text.replace(/\n/g, "<br>");
-
-    messageElem.appendChild(bubble);
-
-    if (!isStreaming) {
-      this.appendTimestamp(messageElem, sender, timestamp);
+    toggleChat() {
+        this.isChatVisible = !this.isChatVisible;
+        const chatContainer = this.shadowRoot.querySelector('#chatContainer');
+        const toggleChatBtn = this.shadowRoot.querySelector('#toggleChatBtn');
+        toggleChatBtn.style.display = this.isChatVisible ? 'none' : 'flex';
+        chatContainer.style.opacity = this.isChatVisible ? '1' : '0';
+        chatContainer.style.transform = this.isChatVisible ? 'scale(1)' : 'scale(0.8)';
+        chatContainer.style.visibility = this.isChatVisible ? 'visible' : 'hidden';
     }
 
-    messagesDiv.appendChild(messageElem);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+// Trong class ChatBot
+    async sendMessage() {
+        const input = this.shadowRoot.querySelector('#messageInput');
 
-    return isStreaming ? { bubble, messageElem } : messageElem;
-  }
+        const message = input.value.trim();
+        if (this.socket != null) {
+            this.socket.emit("send_message", {
+                message: message
+            })
+            input.value = '';
+            return
+        }
+        if (this.isSending) return;
 
-  appendTimestamp(parentElement, sender, timestamp = null) {
-    const timeElem = document.createElement("div");
-    timeElem.className = "timestamp";
-    timeElem.style.fontSize = "11px";
-    timeElem.style.color = "#999";
-    timeElem.style.marginTop = "6px";
-    timeElem.style.marginLeft = sender.toLowerCase() !== "you" && "35px";
-    timeElem.style.marginRight = sender.toLowerCase() === "you" && "35px";
-    timeElem.style.textAlign =
-      sender.toLowerCase() === "you" ? "right" : "left";
+        const sendBtn = this.shadowRoot.querySelector('#sendBtn');
+        if (!message) return;
 
-    const now = timestamp ? new Date(timestamp) : new Date();
-    const hh = String(now.getHours()).padStart(2, "0");
-    const mm = String(now.getMinutes()).padStart(2, "0");
-    timeElem.textContent = `${hh}:${mm}`;
+        // Vô hiệu hóa input và button
+        this.disableSending(true);
 
-    parentElement.appendChild(timeElem);
-  }
+        // Hiển thị tin nhắn người dùng
+        this.appendMessage('You', message);
+        input.value = '';
 
-  updateMessage(bubbleDiv, text) {
-    bubbleDiv.textContent += text;
-    const messagesDiv = this.shadowRoot.querySelector("#messages");
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  }
+        // Hiển thị 3 chấm nhảy
+        this.showTypingIndicator();
 
-  showTypingIndicator() {
-    const messagesDiv = this.shadowRoot.querySelector("#messages");
+        try {
+            if (!this.access_token) {
+                throw new Error('Token not provided');
+            }
 
-    // Tạo thẻ gốc
-    const typingElem = document.createElement("div");
-    typingElem.className = "message message-typing";
-    typingElem.id = "typing-indicator";
+            let server_url = this.serverUrl
+            if (!server_url)
+                return alert("server_url not provide")
+            const endpoint = `${server_url}/llm/api/v2/ask-bee`;
+            const listFile = await this.getListBase64File()
+            const responseRM = fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: 'Bearer ' + this.access_token,
+                },
+                body: JSON.stringify({
+                    question: message,
+                    model_type: this?.model_type || "alfinac",
+                    user_bfs: this?.user_bfs || null,
+                    chat_session_id: this.session_chatbot,
+                    history: this.chatHistory,
+                    files:listFile
+                }),
+            });
+            this.chatHistory.push({role: 'user', content: message});
 
-    // Tạo bubble chứa nội dung và dot nhảy
-    typingElem.innerHTML = `
+            let textQueue = [];
+            let typing = false;
+
+            const animateTyping = async (target, text) => {
+                textQueue.push(text);
+                if (typing) return; // Đã có animate đang chạy
+
+                typing = true;
+                while (textQueue.length > 0) {
+                    const nextText = textQueue.shift();
+                    for (let i = 0; i < nextText.length; i++) {
+                        target.textContent += nextText[i];
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                }
+                typing = false;
+            };
+
+            let botMessageDiv = null;
+            let process_image =0
+            let final_text = `Mình đang tra cứu dữ liệu để trả lời câu hỏi *${message}*. `
+            botMessageDiv = this.appendMessage('Bot', '', true); // tạo thẻ rỗng
+            responseRM.then(async response => {
+                if (response.status === 401) {
+                    this.removeTypingIndicator();
+                    this.appendMessage('System', 'Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.');
+                    return;
+                }
+
+                if (!response.body) {
+                    throw new Error('No response body');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+
+                let isServerResponse = false;
+                let image_base64 = "";
+                let process_img_text = "";
+                while (true) {
+                    const {value, done} = await reader.read();
+                    if (done) break;
+
+                    let chunk = decoder.decode(value, {stream: true});
+                    if (chunk === "[IMAGE_CHART_PROCESS]") {
+                        chunk = ""
+                        process_image = 1
+                    } else if( process_image >0){
+                        console.log(chunk)
+                        if ((chunk||"").startsWith("[TEXT]")) {
+                            process_img_text  = chunk.replace("[TEXT]", "").replace("[IMG]", "");
+                        }else{
+                            image_base64 +=chunk.replace("[IMG]", "");
+                        }
+                        chunk = ""
+                    }
+                    else {
+                        buffer += chunk;
+                    }
+                    if (botMessageDiv) {
+                        if (!isServerResponse) {
+                            botMessageDiv.innerHTML = "";
+                        }
+                        isServerResponse = true;
+                        if (chunk !== "")
+                            await animateTyping(botMessageDiv, chunk);
+                    }
+                }
+
+                if (!isServerResponse) {
+                    this.removeTypingIndicator();
+                    this.appendMessage('Bot', 'Không nhận được phản hồi từ server.');
+                } else {
+                    if (process_image > 0) {
+                        botMessageDiv.remove()
+                        let botMessageDiv2 = this.appendMessage('Bot', '', true); // tạo thẻ rỗng
+
+                        await animateTyping(botMessageDiv2, process_img_text.replace(final_text,""));
+                        if (!!image_base64){
+
+                            let imgDiv = this.appendMessage('Bot', '');
+                            imgDiv.innerHTML = `<img style="width: 100%" src='${image_base64}' alt="Red dot" />`;
+                        }
+                        this.chatHistory.push({role: 'assistant', content: botMessageDiv2.innerText});
+
+                    }else{
+                        this.chatHistory.push({role: 'assistant', content: botMessageDiv.innerText});
+                    }
+
+                    this.disableSending(false)
+                }
+            })
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            this.removeTypingIndicator();
+            if (botMessageDiv) {
+                await animateTyping(botMessageDiv, final_text);
+            }
+
+        } catch (error) {
+            console.error('Stream error:', error);
+            this.removeTypingIndicator();
+            this.appendMessage('Error', 'Không thể gửi tin nhắn: ' + error.message);
+            this.disableSending(false)
+        }
+
+    }
+
+    disableSending(state) {
+        const input = this.shadowRoot.querySelector('#messageInput');
+        const sendBtn = this.shadowRoot.querySelector('#sendBtn');
+        this.isSending = state;
+        input.disabled = state;
+        sendBtn.disabled = state;
+        input.focus();
+    }
+    getListBase64File() {
+        const fileInput = this.shadowRoot.querySelector("#fileInput");
+        const files = fileInput.files;
+
+        if (!files || files.length === 0) return Promise.resolve([]);
+
+        function toBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = (error) => reject(error);
+            });
+        }
+
+        const promises = Array.from(files).map(file => toBase64(file));
+        return Promise.all(promises);
+    }
+
+    appendMessage(sender, text, isStreaming = false) {
+        const messagesDiv = this.shadowRoot.querySelector('#messages');
+        const messageElem = document.createElement('div');
+        messageElem.className = `message message-${sender.toLowerCase()}`;
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        // bubble.textContent = text;
+        bubble.innerHTML = text.replace(/\n/g, "<br>");
+        // bubble.innerHTML = bubble.innerHTML.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        messageElem.appendChild(bubble);
+        messagesDiv.appendChild(messageElem);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        return isStreaming ? bubble : messageElem;
+    }
+
+    updateMessage(bubbleDiv, text) {
+        bubbleDiv.textContent += text;
+        const messagesDiv = this.shadowRoot.querySelector('#messages');
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    showTypingIndicator() {
+        const messagesDiv = this.shadowRoot.querySelector('#messages');
+
+        // Tạo thẻ gốc
+        const typingElem = document.createElement('div');
+        typingElem.className = 'message message-typing';
+        typingElem.id = 'typing-indicator';
+
+        // Tạo bubble chứa nội dung và dot nhảy
+        typingElem.innerHTML = `
         <div class="message-bubble">
-            <span>Bee trả lời </span>
+<!--            Alfinac trả lời-->
             <span class="typing-dot"></span>
             <span class="typing-dot"></span>
             <span class="typing-dot"></span>
         </div>
     `;
 
-    messagesDiv.appendChild(typingElem);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  }
+        messagesDiv.appendChild(typingElem);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
 
-  showTypingIndicatorWithText(text) {
-    const messagesDiv = this.shadowRoot.querySelector("#messages");
-    this.removeTypingIndicator();
-    const typingElem = document.createElement("div");
-    typingElem.className = "message message-typing";
-    typingElem.id = "typing-indicator";
+    showTypingIndicatorWithText(text) {
+        const messagesDiv = this.shadowRoot.querySelector('#messages')
+        this.removeTypingIndicator();
+        const typingElem = document.createElement('div');
+        typingElem.className = 'message message-typing';
+        typingElem.id = 'typing-indicator';
 
-    // Bubble chứa nội dung và dot nhảy
-    typingElem.innerHTML = `
+        // Bubble chứa nội dung và dot nhảy
+        typingElem.innerHTML = `
         <div class="message-bubble" style="white-space:normal !important;">
-            ${text ? `<span>${text}</span><br>` : ""}
+            ${text ? `<span>${text}</span><br>` : ''}
             <span class="typing-dot"></span>
             <span class="typing-dot"></span>
             <span class="typing-dot"></span>
         </div>
     `;
 
-    messagesDiv.appendChild(typingElem);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  }
-
-  showWaitingCountdown(durationSeconds) {
-    const messagesDiv = this.shadowRoot.querySelector("#messages");
-    this.removeTypingIndicator();
-
-    const typingElem = document.createElement("div");
-    typingElem.className = "message message-typing";
-    typingElem.id = "typing-indicator";
-
-    // Tạo phần tử hiển thị countdown
-    let remaining = durationSeconds;
-    const countdownSpan = document.createElement("span");
-    countdownSpan.textContent = `(${Math.floor(remaining / 60)}:${(
-      remaining % 60
-    )
-      .toString()
-      .padStart(2, "0")})`;
-
-    // Hiển thị đoạn văn bản ban đầu
-    const messageBubble = document.createElement("div");
-    messageBubble.className = "message-bubble";
-    messageBubble.style.whiteSpace = "normal";
-    messageBubble.innerHTML = `Đang kết nối với nhân viên... <br>`;
-    messageBubble.appendChild(countdownSpan);
-
-    typingElem.appendChild(messageBubble);
-    messagesDiv.appendChild(typingElem);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-    // Đếm ngược
-    const intervalId = setInterval(() => {
-      remaining--;
-      countdownSpan.textContent = `(${Math.floor(remaining / 60)}:${(
-        remaining % 60
-      )
-        .toString()
-        .padStart(2, "0")})`;
-    }, 1000);
-    // Ghi lại intervalId để xóa nếu cần
-    typingElem.setAttribute("data-interval-id", intervalId);
-  }
-
-  removeTypingIndicator() {
-    const typingElem = this.shadowRoot.querySelector("#typing-indicator");
-    if (typingElem) {
-      const intervalId = typingElem.getAttribute("data-interval-id");
-      if (intervalId) clearInterval(Number(intervalId));
-      typingElem.remove();
+        messagesDiv.appendChild(typingElem);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
-  }
 
-  showTypingState(callback) {
-    this.showTypingIndicatorWithText("", true);
-    setTimeout(() => {
-      this.removeTypingIndicator();
-      callback();
-    }, 1000);
-  }
+    showWaitingCountdown(durationSeconds) {
+        const messagesDiv = this.shadowRoot.querySelector('#messages');
+        this.removeTypingIndicator();
 
-  disconnect(is_not_add) {
-    const chatWithStaff = this.shadowRoot.querySelector("#chatWithStaff");
-    const endChatWithStaff = this.shadowRoot.querySelector("#endChatWithStaff");
-    const menuDropdown = this.shadowRoot.querySelector("#menuDropdown");
-    menuDropdown.style.display = "none";
-    this.chat_with_staff = false;
-    endChatWithStaff.style.display = "none";
-    chatWithStaff.style.display = "block";
-    this.removeTypingIndicator();
+        const typingElem = document.createElement('div');
+        typingElem.className = 'message message-typing';
+        typingElem.id = 'typing-indicator';
 
-    if (!is_not_add) {
-      this.appendMessage("Noti", "❌ Đã kết thúc với nhân viên");
+        // Tạo phần tử hiển thị countdown
+        let remaining = durationSeconds;
+        const countdownSpan = document.createElement('span');
+        countdownSpan.textContent = `(${Math.floor(remaining / 60)}:${(remaining % 60).toString().padStart(2, '0')})`;
+
+        // Hiển thị đoạn văn bản ban đầu
+        const messageBubble = document.createElement('div');
+        messageBubble.className = 'message-bubble';
+        messageBubble.style.whiteSpace = "normal";
+        messageBubble.innerHTML = `Đang kết nối với nhân viên... <br>`;
+        messageBubble.appendChild(countdownSpan);
+
+        typingElem.appendChild(messageBubble);
+        messagesDiv.appendChild(typingElem);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+        // Đếm ngược
+        const intervalId = setInterval(() => {
+            remaining--;
+            countdownSpan.textContent = `(${Math.floor(remaining / 60)}:${(remaining % 60).toString().padStart(2, '0')})`;
+        }, 1000);
+        // Ghi lại intervalId để xóa nếu cần
+        typingElem.setAttribute('data-interval-id', intervalId);
     }
-    this.disableSending(true);
-    setTimeout(() => {
-      this.disableSending(false);
-    }, 1000);
-    // console.log("Kết thúc chat với nhân viên.");
-    if (this.socket && this.socket.connected) {
-      this.socket.emit(
-        "client_leave",
-        {
-          reason: "user_closed_tab",
-          sid: this.socket.id,
-        },
-        (response) => {
-          // console.log("✅ Server responded:", response);
-          // Sau khi server phản hồi, mới disconnect
-          this.socket.disconnect();
-          this.socket = null;
-          // console.log("🔌 Socket disconnected");
+
+
+    removeTypingIndicator() {
+        const typingElem = this.shadowRoot.querySelector('#typing-indicator');
+        if (typingElem) {
+            const intervalId = typingElem.getAttribute('data-interval-id');
+            if (intervalId) clearInterval(Number(intervalId));
+            typingElem.remove();
         }
-      );
-    } else {
-      console.warn("⚠️ No active socket connection to disconnect.");
     }
 
-    this.currentRoom = null;
-  }
-
-  connect(callBackConnect, visitor_id) {
-    callBackConnect();
-    const auth = {};
-    if (visitor_id) {
-      auth.anonymous_token = visitor_id;
+    showTypingState(callback) {
+        this.showTypingIndicatorWithText("", true);
+        setTimeout(() => {
+            this.removeTypingIndicator()
+            callback()
+        }, 1000);
     }
 
-    this.socket = io(this.socket_url, {
-      path: this.socket_path,
-      auth: auth,
-      transports: ["websocket"],
-      cors: {
-        origin: "*", // hoặc whitelist domain
-        methods: ["GET", "POST"],
-      },
-    });
+    disconnect(is_not_add) {
+        const chatWithStaff = this.shadowRoot.querySelector('#chatWithStaff');
+        const endChatWithStaff = this.shadowRoot.querySelector('#endChatWithStaff');
+        const menuDropdown = this.shadowRoot.querySelector('#menuDropdown');
+        menuDropdown.style.display = 'none';
+        this.chat_with_staff = false;
+        endChatWithStaff.style.display = 'none';
+        chatWithStaff.style.display = 'block';
+        this.removeTypingIndicator()
 
-    let socket = this.socket;
-    let dom_session_client_id;
-    socket.on("connect", () => {
-      // console.log(`✅ Connected with id ${socket.id}`);
-      dom_session_client_id = socket.id;
-    });
+        if (!is_not_add) {
+            if (this.socket) {
+                this.appendMessage("Noti", "❌ Đã kết thúc với nhân viên")
+            }
+        }
+        this.disableSending(true)
+        setTimeout(() => {
+            this.disableSending(false)
+        }, 1000);
+        console.log('Kết thúc chat với nhân viên.');
+        if (this.socket && this.socket.connected) {
+            this.socket.disconnect();
+            this.socket = null
+            console.log("🔌 Socket disconnected");
 
-    socket.on("receive_message", (data) => {
-      // console.log(`📩 Message from ${data.from}: ${data.message}`);
-    });
-
-    socket.on("error", (data) => {
-      // console.log(`❌ Error: ${data.message}`);
-    });
-    socket.on("connect_error", (err) => {
-      // console.log(`❌ Connect error: ${err.message}`);
-    });
-    let dom_currentRoom = this.currentRoom;
-    socket.on("chat_accepted", (data) => {
-      dom_currentRoom = data.room;
-      this.disableSending(false);
-      // console.log(`Chat accepted. Joined room: ${dom_currentRoom}`);
-      this.removeTypingIndicator();
-      if (data?.type == "reconnect") {
-        this.appendMessage("Noti", data.message);
-      } else {
-        this.appendMessage(
-          "Noti",
-          `Nhân viên đã kết nối với bạn ở phòng: ${dom_currentRoom || ""}`
-        );
-      }
-      if (this.socket != null) {
-        // console.log("start get get_conversation");
-        this.socket.emit("get_conversation", {});
-      }
-    });
-    socket.on("client_conversation", (data) => {
-      // console.log("client_conversation");
-      let message = this.shadowRoot.querySelector("#messages"); // hoặc #messages nếu cần
-      message.innerHTML = "";
-      let his = data?.history_list || [];
-      for (let i = 0; i < his.length; i++) {
-        let item = JSON.parse(his[i]);
-        // console.log(item);
-        if (item?.role == "client") {
-          this.appendMessage(
-            "You",
-            `${item.message || ""}`,
-            false,
-            item.timestamp
-          );
         } else {
-          this.appendMessage(
-            "Bot",
-            `${item.message || ""}`,
-            false,
-            item.timestamp
-          );
-        }
-      }
-    });
-    socket.on("new_message", (data) => {
-      // console.log("New message:", data);
-      // console.log(`New message: ${data?.message || ""}`);
-
-      let from = data.from;
-      if (
-        data.sender_role == "client" &&
-        this.visitor_id == data.anonymous_token
-      ) {
-        this.appendMessage("You", `${data.message || ""}`);
-      } else {
-        function callback() {
-          this.appendMessage("Bot", `${data.message || ""}`);
+            console.warn("⚠️ No active socket connection to disconnect.");
         }
 
-        this.showTypingState(callback.bind(this));
-      }
-    });
-    socket.on("admin_disconnected", (data) => {
-      log(`Admin disconnected from room ${data.room}.`);
-      if (currentRoom === data.room) {
-        dom_currentRoom = null;
-        dom_session_client_id = null;
-      }
-    });
-    socket.on("user_disconnected", (data) => {
-      log(`User disconnected from room ${data.room}.`);
-    });
-    socket.on("timeout_waiting", (data) => {
-      this.disconnect(true);
-      this.appendMessage(
-        "Noti",
-        data.message || "⏰ Không có nhân viên đang trực tuyến."
-      );
-      // console.log(data.message);
-    });
-  }
+        this.currentRoom = null;
+    }
 
-  autoScroll() {
-    setTimeout(() => {
-      const messagesDiv = this.shadowRoot.querySelector("#messages");
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }, 0);
-  }
+    connect(callBackConnect, token) {
+        const auth = {};
+        if (token) {
+            auth.token = token;
+        }
+
+        this.socket = io(this.socket_url, {
+            path: this.socket_path,
+            auth: auth,
+            transports: ['websocket'],
+            cors: {
+                origin: "*", // hoặc whitelist domain
+                methods: ["GET", "POST"]
+            }
+        });
+
+        let socket = this.socket
+        let dom_session_client_id
+        socket.on("connect", () => {
+            console.log(`✅ Connected with id ${socket.id}`);
+            dom_session_client_id = socket.id;
+            callBackConnect()
+        });
+
+        socket.on("receive_message", (data) => {
+            console.log(`📩 Message from ${data.from}: ${data.message}`);
+        });
+
+        socket.on("error", (data) => {
+            console.log(`❌ Error: ${data.message}`);
+        });
+        socket.on("connect_error", (err) => {
+            console.log(`❌ Connect error: ${err.message}`);
+        });
+        let dom_currentRoom = this.currentRoom
+        socket.on("chat_accepted", (data) => {
+            dom_currentRoom = data.room;
+            this.disableSending(false)
+            console.log(`Chat accepted. Joined room: ${dom_currentRoom}`);
+            this.removeTypingIndicator();
+            this.appendMessage('Noti', `Nhân viên đã kết nối với bạn ở phòng: ${dom_currentRoom || ""}`);
+        });
+        socket.on("new_message", (data) => {
+            console.log("New message:", data);
+            console.log(`New message: ${data?.message || ""}`);
+
+            let from = data.from
+            if (from == dom_session_client_id) {
+                this.appendMessage('You', `${data.message || ""}`);
+            } else {
+                function callback() {
+                    this.appendMessage('Bot', `${data.message || ""}`);
+                }
+
+                this.showTypingState(callback.bind(this))
+            }
+        });
+        socket.on("admin_disconnected", (data) => {
+            log(`Admin disconnected from room ${data.room}.`);
+            if (currentRoom === data.room) {
+                dom_currentRoom = null;
+                dom_session_client_id = null
+            }
+        });
+        socket.on("user_disconnected", (data) => {
+            log(`User disconnected from room ${data.room}.`);
+        });
+        socket.on("timeout_waiting", (data) => {
+            this.disconnect(true)
+            this.appendMessage('Noti', data.message || "⏰ Không có nhân viên đang trực tuyến.");
+            console.log(data.message)
+        });
+    }
+
+    autoScroll() {
+        setTimeout(() => {
+            const messagesDiv = this.shadowRoot.querySelector('#messages');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }, 0);
+    }
+
 }
 
-customElements.define("chat-bot-client", ChatBot);
+customElements.define('chat-bot', ChatBot);
+
 EOF
