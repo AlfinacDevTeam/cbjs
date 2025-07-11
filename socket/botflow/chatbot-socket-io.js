@@ -392,6 +392,7 @@ class ChatBot extends HTMLElement {
                     <div class="menu-wrapper">
                         <button class="menu-button" id="menuBtn">⋮</button>
                         <div class="menu-dropdown" id="menuDropdown">
+                            <div class="menu-item" id="chatWithAI">💬 Chat với AI</div>
                             <div class="menu-item" id="chatWithStaff">💬 Chat với nhân viên</div>
                             <div class="menu-item" id="endChatWithStaff" style="display: none">❌ Kết thúc với nhân viên</div>
                             <div class="menu-item" id="flowbot">Quy trình</div>
@@ -399,12 +400,18 @@ class ChatBot extends HTMLElement {
                     </div>
                     <button class="close-button" style="color: #ff0063" id="closeBtn">✕</button>
                 </div>
+                <div id="chatflow_container" style="display: none">
+                    
+                </div>
                 <div class="chat-messages" id="messages">
-                <div class="message message-bot">
-                    <div class="message-bubble">Chào bạn, mình là Alfinac AI Assistant bạn cần tôi giúp gì?</div>
+                    <div class="message message-bot">
+                        <div class="message-bubble">Chào bạn, mình là Alfinac AI Assistant bạn cần tôi giúp gì?</div>
+                    </div>
+                    <div id="botflow_container" class="message message-bot">
+                                    
+                    </div>
                 </div>
-                </div>
-                <div class="chat-input">
+                <div class="chat-input" id="chat_input_container">
                     <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 từ)..."/>
                     <div class="file-input-wrapper" >
                         <div class="file-name-container" id="file-container" style="display: none">
@@ -432,6 +439,9 @@ class ChatBot extends HTMLElement {
         const fileInput = this.shadowRoot.querySelector('#fileInput');
         const fileBtn = this.shadowRoot.querySelector('#fileBtn');
         const removeFileBtn = this.shadowRoot.querySelector('#removeFileBtn');
+        const chat_input_container = this.shadowRoot.querySelector('#chat_input_container');
+        const messages = this.shadowRoot.querySelector('#messages');
+        const chatflow_container = this.shadowRoot.querySelector('#chatflow_container');
         const fileContainer =this.shadowRoot.querySelector('#file-container')
         fileBtn.addEventListener('click', () => {
             fileInput.click(); // Mở hộp thoại chọn file khi nhấn nút
@@ -444,6 +454,7 @@ class ChatBot extends HTMLElement {
         // Xử lý mở/tắt dropdown
         const menuBtn = this.shadowRoot.querySelector('#menuBtn');
         const menuDropdown = this.shadowRoot.querySelector('#menuDropdown');
+        const chatWithAI = this.shadowRoot.querySelector('#chatWithAI');
         menuBtn.addEventListener('click', () => {
             menuDropdown.style.display = menuDropdown.style.display === 'block' ? 'none' : 'block';
         });
@@ -456,14 +467,34 @@ class ChatBot extends HTMLElement {
 
         flowbot.addEventListener('click', () => {
             this.disconnect()
+            messages.style.display = 'none';
+            chat_input_container.style.display = 'none';
+            chatflow_container.style.display = '';
+            chatWithAI.style.display = '';
+            chatflow_container.innerHTML = `<iframe  src="http://botflow.alfinac.com:8081/main-flow-bee-vnrhn2s" style="border: none; width: 100%; height: 100vh"></iframe>`
+
         });
         endChatWithStaff.addEventListener('click', () => {
+            chatflow_container.style.display = 'none';
+            messages.style.display = '';
+            chat_input_container.style.display = '';
+            this.disconnect()
+        });
+
+        chatWithAI.addEventListener('click', () => {
+            chatflow_container.style.display = 'none';
+            messages.style.display = '';
+            chat_input_container.style.display = '';
             this.disconnect()
         });
 
 
         chatWithStaff.addEventListener('click', () => {
             menuDropdown.style.display = 'none';
+            messages.style.display = '';
+            chat_input_container.style.display = '';
+            chatflow_container.style.display = 'none';
+
             dom_chat_with_staff = true
             if (dom_chat_with_staff) {
                 function callbackConnect() {
