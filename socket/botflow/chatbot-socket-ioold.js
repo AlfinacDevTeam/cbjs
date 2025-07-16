@@ -26,16 +26,68 @@ class ChatBot extends HTMLElement {
         this.chat_with_staff = false;
         this.socket = null;
         this.currentRoom = null;
-        this.render();
+        this.visitor_id = null;
         // Thêm script socket.io sau khi render xong
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/gh/AlfinacDevTeam/cbjs@socket-io/socket/socket.io.min.js';
-        script.type = 'text/javascript';
-        script.onload = () => {
-            console.log('Socket.IO script loaded successfully');
-        };
-        document.head.appendChild(script); // ✅ dùng document.head
 
+        setTimeout(async () => {
+            await this.addScript("https://static.alfinac.com:5002/chatbot/socket.io.min.js")
+            await this.addScript("https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js")
+            const fp = await FingerprintJS.load()
+            const result = await fp.get()
+            const visitor_id = btoa(result.visitorId + "_" + this.getDataStr());
+            console.log("visitorId:", visitor_id)
+            sessionStorage.setItem("visitor_id", visitor_id);
+            this.visitor_id = visitor_id
+            this.render();
+        }, 1)
+    }
+
+    getDataStr() {
+        const now = new Date()
+        const yyyy = now.getFullYear()
+        const mm = String(now.getMonth() + 1).padStart(2, '0')
+        const dd = String(now.getDate()).padStart(2, '0')
+        return `${yyyy}_${mm}_${dd}`
+    }
+
+    setStore(key, data, hours = 6) {
+        const now = Date.now();
+        const expiresAt = now + hours * 60 * 60 * 1000;
+
+        localStorage.setItem(key, JSON.stringify([
+            data,
+            expiresAt
+        ]));
+    }
+
+    getStore(key) {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        try {
+            const data = JSON.parse(raw);
+            if (Date.now() > data[1]) {
+                localStorage.removeItem(key);
+                return null;
+            }
+            return data[0];
+        } catch (e) {
+            console.warn("Invalid visitor_info format");
+            return null;
+        }
+    }
+
+    addScript(url) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = url;
+            script.type = 'text/javascript';
+            script.onload = () => {
+                console.info(`Loading script ${url} successfully!`)
+                resolve()
+            };
+            script.onerror = () => reject(new Error(`Failed to load script: ${url}`));
+            document.head.appendChild(script);
+        });
     }
 
     render() {
@@ -316,112 +368,29 @@ class ChatBot extends HTMLElement {
                     box-shadow: none;
                     padding: 0;
                 }
-             
-                .file-input {
-                    display: none;
-                }
-    
-                .file-button {
-                    background: none !important;
-                    color: white !important;
-                    border-radius: 50%;
-                    cursor: pointer;
-                }
-                .file-button:hover {
-                    background: rgba(0,0,0,0.11) !important;
-                }
-                .file-name-display {
-                    bottom: 100%; /* nằm trên nút */
-                    background: #fff;
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    font-size: 11px;
-                    color: #333;
-                    white-space: nowrap;
-                    max-width: 120px;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    text-align: center;
-                    margin-bottom: 4px;
-                    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-                }
-                .file-remove-button {
-                    bottom: 100%; /* nằm trên nút */
-                    background: #fff;
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    font-size: 11px;
-                    color: #333;
-                    white-space: nowrap;
-                    max-width: 120px;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    text-align: center;
-                    margin-bottom: 4px;
-                    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-                }
-                .file-input-wrapper {
-                    position: relative;
-                    display: flex;
-                    align-items: center;
-                    margin-right: 8px;
-                }
-                
-                .file-name-container {
-                    position: absolute;
-                    bottom: 100%;
-                    display: flex;
-                    align-items: center;
-                    background: #fff;
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    margin-bottom: 4px;
-                    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-                    max-width: 150px;
-                    overflow: hidden;
-                }
-                .file-remove-button:hover {
-                    color: red;
-                }
-            </style>
 
+            </style>
+             
             <button class="action-button" style="z-index: 9999999999" id="toggleChatBtn">💬</button>
-            <div class="chat-container" style="z-index: 9999999999;overflow: auto" id="chatContainer">
+            <div class="chat-container" style="z-index: 9999999999;" id="chatContainer">
                <div class="chat-header">
                     Alfinac AI Assistant
                     <div class="menu-wrapper">
                         <button class="menu-button" id="menuBtn">⋮</button>
                         <div class="menu-dropdown" id="menuDropdown">
-                            <div class="menu-item" id="chatWithAI">💬 Chat với AI</div>
                             <div class="menu-item" id="chatWithStaff">💬 Chat với nhân viên</div>
                             <div class="menu-item" id="endChatWithStaff" style="display: none">❌ Kết thúc với nhân viên</div>
-                            <div class="menu-item" id="flowbot">Quy trình</div>
                         </div>
                     </div>
                     <button class="close-button" style="color: #ff0063" id="closeBtn">✕</button>
                 </div>
-                <div id="chatflow_container" style="display: none">
-                    
-                </div>
                 <div class="chat-messages" id="messages">
-                    <div class="message message-bot">
-                        <div class="message-bubble">Chào bạn, mình là Alfinac AI Assistant bạn cần tôi giúp gì?</div>
-                    </div>
-                    <div id="botflow_container" class="message message-bot">
-                                    
-                    </div>
+                <div class="message message-bot">
+                    <div class="message-bubble">Chào bạn, mình là Alfinac AI Assistant bạn cần tôi giúp gì?</div>
                 </div>
-                <div class="chat-input" id="chat_input_container">
+                </div>
+                <div class="chat-input">
                     <input id="messageInput" maxlength="200" placeholder="Nhập tin nhắn (200 từ)..."/>
-                    <div class="file-input-wrapper" >
-                        <div class="file-name-container" id="file-container" style="display: none">
-                            <span class="file-remove-button" id="removeFileBtn" title="Xoá file">✕</span>
-                                <span class="file-name-display" id="fileNameDisplay"></span>
-                        </div>
-<!--                        <input type="file" id="fileInput" class="file-input" multiple>-->
-                        <input type="file" id="fileInput" class="file-input" >
-                        <span class="file-button" id="fileBtn">📎</span>
-                    </div>
                     <button id="sendBtn">Gửi</button>
                 </div>
                 <input id="hidden_history" type="hidden" value="[]">
@@ -434,78 +403,34 @@ class ChatBot extends HTMLElement {
         this.shadowRoot.querySelector('#messageInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.sendMessage();
         });
-
-        // Thêm sự kiện cho nút chọn file
-        const fileInput = this.shadowRoot.querySelector('#fileInput');
-        const fileBtn = this.shadowRoot.querySelector('#fileBtn');
-        const removeFileBtn = this.shadowRoot.querySelector('#removeFileBtn');
-        const chat_input_container = this.shadowRoot.querySelector('#chat_input_container');
-        const messages = this.shadowRoot.querySelector('#messages');
-        const chatflow_container = this.shadowRoot.querySelector('#chatflow_container');
-        const fileContainer =this.shadowRoot.querySelector('#file-container')
-        fileBtn.addEventListener('click', () => {
-            fileInput.click(); // Mở hộp thoại chọn file khi nhấn nút
-        });
-        removeFileBtn.addEventListener('click', () => {
-            fileContainer.style.display = 'none';
-            fileInput.value = "";
-        });
-        fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
         // Xử lý mở/tắt dropdown
         const menuBtn = this.shadowRoot.querySelector('#menuBtn');
         const menuDropdown = this.shadowRoot.querySelector('#menuDropdown');
-        const chatWithAI = this.shadowRoot.querySelector('#chatWithAI');
         menuBtn.addEventListener('click', () => {
             menuDropdown.style.display = menuDropdown.style.display === 'block' ? 'none' : 'block';
         });
         const chatWithStaff = this.shadowRoot.querySelector('#chatWithStaff');
         const endChatWithStaff = this.shadowRoot.querySelector('#endChatWithStaff');
-        const flowbot = this.shadowRoot.querySelector('#flowbot');
         let dom_chat_with_staff = this.chat_with_staff;
 
 
-
-        flowbot.addEventListener('click', () => {
-            this.disconnect()
-            messages.style.display = 'none';
-            chat_input_container.style.display = 'none';
-            chatflow_container.style.display = '';
-            chatWithAI.style.display = '';
-            chatflow_container.innerHTML = `<iframe  src="http://botflow.alfinac.com:8081/main-flow-bee-vnrhn2s" style="border: none; width: 100%; height: 100vh"></iframe>`
-
-        });
         endChatWithStaff.addEventListener('click', () => {
-            chatflow_container.style.display = 'none';
-            messages.style.display = '';
-            chat_input_container.style.display = '';
-            this.disconnect()
-        });
-
-        chatWithAI.addEventListener('click', () => {
-            chatflow_container.style.display = 'none';
-            messages.style.display = '';
-            chat_input_container.style.display = '';
             this.disconnect()
         });
 
 
         chatWithStaff.addEventListener('click', () => {
             menuDropdown.style.display = 'none';
-            messages.style.display = '';
-            chat_input_container.style.display = '';
-            chatflow_container.style.display = 'none';
-
             dom_chat_with_staff = true
             if (dom_chat_with_staff) {
                 function callbackConnect() {
                     this.disableSending(true)
                     endChatWithStaff.style.display = 'block';
                     chatWithStaff.style.display = 'none';
-                    // this.showTypingIndicatorWithText("Đang kết nối với nhân viên");
                     this.showWaitingCountdown(300);
                 }
 
-                this.connect(callbackConnect.bind(this))
+                this.connect(callbackConnect.bind(this), this.visitor_id)
             } else {
                 endChatWithStaff.style.display = 'none';
                 chatWithStaff.style.display = 'block';
@@ -516,37 +441,7 @@ class ChatBot extends HTMLElement {
 
 
     }
-    handleFileSelect(event) {
-        const files = event.target.files;
-        const fileNameDisplay = this.shadowRoot.querySelector('#fileNameDisplay');
-        if (files.length > 0) {
-            const invalidFiles = Array.from(files).filter(file => !file.name.toLowerCase().endsWith('.pdf'));
 
-            if (invalidFiles.length > 0) {
-                alert("❌ Chỉ cho phép tải lên file định dạng PDF.");
-                // Reset lại input
-                event.target.value = '';
-                fileNameDisplay.textContent = '';
-                fileContainer.style.display = 'none';
-                return;
-            }
-            const fileList = Array.from(files).map(file => file.name).join(', ');
-            fileNameDisplay.textContent = fileList
-            this.shadowRoot.querySelector('#file-container').style.display = '';
-            // Logic xử lý file (ví dụ: gửi file lên server)
-            Array.from(files).forEach(file => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const fileContent = e.target.result;
-                    console.log(`File ${file.name} loaded, size: ${file.size} bytes`);
-                };
-                reader.readAsDataURL(file);
-            });
-        } else {
-            this.shadowRoot.querySelector('#file-container').style.display = 'none';
-            fileNameDisplay.textContent = ''; // Xóa tên file nếu không có file được chọn
-        }
-    }
     toggleChat() {
         this.isChatVisible = !this.isChatVisible;
         const chatContainer = this.shadowRoot.querySelector('#chatContainer');
@@ -593,7 +488,6 @@ class ChatBot extends HTMLElement {
             if (!server_url)
                 return alert("server_url not provide")
             const endpoint = `${server_url}/llm/api/v2/ask-bee`;
-            const listFile = await this.getListBase64File()
             const responseRM = fetch(endpoint, {
                 method: 'POST',
                 headers: {
@@ -605,8 +499,7 @@ class ChatBot extends HTMLElement {
                     model_type: this?.model_type || "alfinac",
                     user_bfs: this?.user_bfs || null,
                     chat_session_id: this.session_chatbot,
-                    history: this.chatHistory,
-                    files:listFile
+                    history: this.chatHistory
                 }),
             });
             this.chatHistory.push({role: 'user', content: message});
@@ -630,8 +523,6 @@ class ChatBot extends HTMLElement {
             };
 
             let botMessageDiv = null;
-            let process_image =0
-            let final_text = `Mình đang tra cứu dữ liệu để trả lời câu hỏi *${message}*. `
             botMessageDiv = this.appendMessage('Bot', '', true); // tạo thẻ rỗng
             responseRM.then(async response => {
                 if (response.status === 401) {
@@ -649,35 +540,20 @@ class ChatBot extends HTMLElement {
                 let buffer = '';
 
                 let isServerResponse = false;
-                let image_base64 = "";
-                let process_img_text = "";
                 while (true) {
                     const {value, done} = await reader.read();
                     if (done) break;
 
-                    let chunk = decoder.decode(value, {stream: true});
-                    if (chunk === "[IMAGE_CHART_PROCESS]") {
-                        chunk = ""
-                        process_image = 1
-                    } else if( process_image >0){
-                        console.log(chunk)
-                        if ((chunk||"").startsWith("[TEXT]")) {
-                            process_img_text  = chunk.replace("[TEXT]", "").replace("[IMG]", "");
-                        }else{
-                            image_base64 +=chunk.replace("[IMG]", "");
-                        }
-                        chunk = ""
-                    }
-                    else {
-                        buffer += chunk;
-                    }
+                    const chunk = decoder.decode(value, {stream: true});
+                    buffer += chunk;
+
+
                     if (botMessageDiv) {
                         if (!isServerResponse) {
                             botMessageDiv.innerHTML = "";
                         }
                         isServerResponse = true;
-                        if (chunk !== "")
-                            await animateTyping(botMessageDiv, chunk);
+                        await animateTyping(botMessageDiv, chunk);
                     }
                 }
 
@@ -685,29 +561,14 @@ class ChatBot extends HTMLElement {
                     this.removeTypingIndicator();
                     this.appendMessage('Bot', 'Không nhận được phản hồi từ server.');
                 } else {
-                    if (process_image > 0) {
-                        botMessageDiv.remove()
-                        let botMessageDiv2 = this.appendMessage('Bot', '', true); // tạo thẻ rỗng
-
-                        await animateTyping(botMessageDiv2, process_img_text.replace(final_text,""));
-                        if (!!image_base64){
-
-                            let imgDiv = this.appendMessage('Bot', '');
-                            imgDiv.innerHTML = `<img style="width: 100%" src='${image_base64}' alt="Red dot" />`;
-                        }
-                        this.chatHistory.push({role: 'assistant', content: botMessageDiv2.innerText});
-
-                    }else{
-                        this.chatHistory.push({role: 'assistant', content: botMessageDiv.innerText});
-                    }
-
+                    this.chatHistory.push({role: 'assistant', content: botMessageDiv.innerText});
                     this.disableSending(false)
                 }
             })
             await new Promise(resolve => setTimeout(resolve, 3000));
             this.removeTypingIndicator();
             if (botMessageDiv) {
-                await animateTyping(botMessageDiv, final_text);
+                await animateTyping(botMessageDiv, `Mình đang tra cứu dữ liệu để trả lời câu hỏi *${message}*\n. `);
             }
 
         } catch (error) {
@@ -727,39 +588,37 @@ class ChatBot extends HTMLElement {
         sendBtn.disabled = state;
         input.focus();
     }
-    getListBase64File() {
-        const fileInput = this.shadowRoot.querySelector("#fileInput");
-        const files = fileInput.files;
 
-        if (!files || files.length === 0) return Promise.resolve([]);
-
-        function toBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = (error) => reject(error);
-            });
-        }
-
-        const promises = Array.from(files).map(file => toBase64(file));
-        return Promise.all(promises);
-    }
-
-    appendMessage(sender, text, isStreaming = false) {
+    appendMessage(sender, text, isStreaming = false, timestamp = null) {
         const messagesDiv = this.shadowRoot.querySelector('#messages');
         const messageElem = document.createElement('div');
         messageElem.className = `message message-${sender.toLowerCase()}`;
+
         const bubble = document.createElement('div');
         bubble.className = 'message-bubble';
-        // bubble.textContent = text;
         bubble.innerHTML = text.replace(/\n/g, "<br>");
-        // bubble.innerHTML = bubble.innerHTML.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
         messageElem.appendChild(bubble);
+
+        // Thêm phần hiển thị thời gian
+        const timeElem = document.createElement('div');
+        timeElem.style.fontSize = '11px';
+        timeElem.style.color = '#999';
+        timeElem.style.marginTop = '4px';
+        timeElem.style.textAlign = sender.toLowerCase() === 'you' ? 'right' : 'left';
+
+        const now = timestamp ? new Date(timestamp) : new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        timeElem.textContent = `${hh}:${mm}`;
+
+        messageElem.appendChild(timeElem);
+
         messagesDiv.appendChild(messageElem);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
         return isStreaming ? bubble : messageElem;
     }
+
 
     updateMessage(bubbleDiv, text) {
         bubbleDiv.textContent += text;
@@ -872,9 +731,7 @@ class ChatBot extends HTMLElement {
         this.removeTypingIndicator()
 
         if (!is_not_add) {
-            if (this.socket) {
-                this.appendMessage("Noti", "❌ Đã kết thúc với nhân viên")
-            }
+            this.appendMessage("Noti", "❌ Đã kết thúc với nhân viên")
         }
         this.disableSending(true)
         setTimeout(() => {
@@ -882,9 +739,17 @@ class ChatBot extends HTMLElement {
         }, 1000);
         console.log('Kết thúc chat với nhân viên.');
         if (this.socket && this.socket.connected) {
-            this.socket.disconnect();
-            this.socket = null
-            console.log("🔌 Socket disconnected");
+            this.socket.emit("client_leave", {
+                reason: "user_closed_tab",
+                sid: this.socket.id
+            }, (response) => {
+                console.log("✅ Server responded:", response);
+                // Sau khi server phản hồi, mới disconnect
+                this.socket.disconnect();
+                this.socket = null
+                console.log("🔌 Socket disconnected");
+            });
+
 
         } else {
             console.warn("⚠️ No active socket connection to disconnect.");
@@ -893,10 +758,11 @@ class ChatBot extends HTMLElement {
         this.currentRoom = null;
     }
 
-    connect(callBackConnect, token) {
+    connect(callBackConnect, visitor_id) {
+        callBackConnect()
         const auth = {};
-        if (token) {
-            auth.token = token;
+        if (visitor_id) {
+            auth.anonymous_token = visitor_id;
         }
 
         this.socket = io(this.socket_url, {
@@ -914,7 +780,6 @@ class ChatBot extends HTMLElement {
         socket.on("connect", () => {
             console.log(`✅ Connected with id ${socket.id}`);
             dom_session_client_id = socket.id;
-            callBackConnect()
         });
 
         socket.on("receive_message", (data) => {
@@ -933,14 +798,39 @@ class ChatBot extends HTMLElement {
             this.disableSending(false)
             console.log(`Chat accepted. Joined room: ${dom_currentRoom}`);
             this.removeTypingIndicator();
-            this.appendMessage('Noti', `Nhân viên đã kết nối với bạn ở phòng: ${dom_currentRoom || ""}`);
+            if (data?.type == 'reconnect') {
+                this.appendMessage('Noti', data.message);
+            } else {
+                this.appendMessage('Noti', `Nhân viên đã kết nối với bạn ở phòng: ${dom_currentRoom || ""}`);
+            }
+            if (this.socket != null) {
+                console.log("start get get_conversation")
+                this.socket.emit("get_conversation", {})
+            }
+
         });
+        socket.on("client_conversation", (data) => {
+            console.log("client_conversation")
+            let message = this.shadowRoot.querySelector('#messages');  // hoặc #messages nếu cần
+            message.innerHTML = ""
+            let his = data?.history_list || []
+            for (let i = 0; i < his.length; i++) {
+                let item = JSON.parse(his[i])
+                console.log(item)
+                if (item?.role == 'client') {
+                    this.appendMessage('You', `${item.message || ""}`, false, item.timestamp);
+                } else {
+                    this.appendMessage('Bot', `${item.message || ""}`, false, item.timestamp);
+                }
+            }
+
+        })
         socket.on("new_message", (data) => {
             console.log("New message:", data);
             console.log(`New message: ${data?.message || ""}`);
 
             let from = data.from
-            if (from == dom_session_client_id) {
+            if (data.sender_role == 'client' && this.visitor_id == data.anonymous_token) {
                 this.appendMessage('You', `${data.message || ""}`);
             } else {
                 function callback() {
@@ -976,4 +866,4 @@ class ChatBot extends HTMLElement {
 
 }
 
-customElements.define('chat-bot', ChatBot);
+customElements.define('chat-bot-client', ChatBot);

@@ -27,7 +27,19 @@ class ChatBot extends HTMLElement {
         this.chat_with_staff = false;
         this.socket = null;
         this.currentRoom = null;
-        this.render();
+        this.visitor_id = null;
+
+        setTimeout(async () => {
+            await this.addScript("https://static.alfinac.com:5002/chatbot/socket.io.min.js")
+            await this.addScript("https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js")
+            const fp = await FingerprintJS.load()
+            const result = await fp.get()
+            const visitor_id = btoa(result.visitorId + "_" + this.getDataStr());
+            console.log("visitorId:", visitor_id)
+            sessionStorage.setItem("visitor_id", visitor_id);
+            this.visitor_id = visitor_id
+            this.render();
+        }, 1)
         // Thêm script socket.io sau khi render xong
         const script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/gh/AlfinacDevTeam/cbjs@socket-io/socket/socket.io.min.js';
@@ -38,7 +50,53 @@ class ChatBot extends HTMLElement {
         document.head.appendChild(script); // ✅ dùng document.head
 
     }
+    getDataStr() {
+        const now = new Date()
+        const yyyy = now.getFullYear()
+        const mm = String(now.getMonth() + 1).padStart(2, '0')
+        const dd = String(now.getDate()).padStart(2, '0')
+        return `${yyyy}_${mm}_${dd}`
+    }
 
+    setStore(key, data, hours = 6) {
+        const now = Date.now();
+        const expiresAt = now + hours * 60 * 60 * 1000;
+
+        localStorage.setItem(key, JSON.stringify([
+            data,
+            expiresAt
+        ]));
+    }
+
+    getStore(key) {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        try {
+            const data = JSON.parse(raw);
+            if (Date.now() > data[1]) {
+                localStorage.removeItem(key);
+                return null;
+            }
+            return data[0];
+        } catch (e) {
+            console.warn("Invalid visitor_info format");
+            return null;
+        }
+    }
+
+    addScript(url) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = url;
+            script.type = 'text/javascript';
+            script.onload = () => {
+                console.info(`Loading script ${url} successfully!`)
+                resolve()
+            };
+            script.onerror = () => reject(new Error(`Failed to load script: ${url}`));
+            document.head.appendChild(script);
+        });
+    }
     render() {
         this.shadowRoot.innerHTML = `
             <style>
@@ -472,7 +530,7 @@ class ChatBot extends HTMLElement {
             chat_input_container.style.display = 'none';
             chatflow_container.style.display = '';
             chatWithAI.style.display = '';
-            chatflow_container.innerHTML = `<iframe  src="http://botflow.alfinac.com:8081/main-flow-bee-vnrhn2s" style="border: none; width: 100%; height: 100vh"></iframe>`
+            chatflow_container.innerHTML = `<iframe  src="https://botflow.alfinac.com:8081/main-flow-bee-vnrhn2s" style="border: none; width: 100%; height: 100vh"></iframe>`
 
         });
         endChatWithStaff.addEventListener('click', () => {
@@ -502,11 +560,9 @@ class ChatBot extends HTMLElement {
                     this.disableSending(true)
                     endChatWithStaff.style.display = 'block';
                     chatWithStaff.style.display = 'none';
-                    // this.showTypingIndicatorWithText("Đang kết nối với nhân viên");
                     this.showWaitingCountdown(300);
                 }
-
-                this.connect(callbackConnect.bind(this))
+                this.connect(callbackConnect.bind(this), this.visitor_id)
             } else {
                 endChatWithStaff.style.display = 'none';
                 chatWithStaff.style.display = 'block';
@@ -747,18 +803,33 @@ class ChatBot extends HTMLElement {
         return Promise.all(promises);
     }
 
-    appendMessage(sender, text, isStreaming = false) {
+    appendMessage(sender, text, isStreaming = false, timestamp = null) {
         const messagesDiv = this.shadowRoot.querySelector('#messages');
         const messageElem = document.createElement('div');
         messageElem.className = `message message-${sender.toLowerCase()}`;
+
         const bubble = document.createElement('div');
         bubble.className = 'message-bubble';
-        // bubble.textContent = text;
         bubble.innerHTML = text.replace(/\n/g, "<br>");
-        // bubble.innerHTML = bubble.innerHTML.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
         messageElem.appendChild(bubble);
+
+        // Thêm phần hiển thị thời gian
+        const timeElem = document.createElement('div');
+        timeElem.style.fontSize = '11px';
+        timeElem.style.color = '#999';
+        timeElem.style.marginTop = '4px';
+        timeElem.style.textAlign = sender.toLowerCase() === 'you' ? 'right' : 'left';
+
+        const now = timestamp ? new Date(timestamp) : new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        timeElem.textContent = `${hh}:${mm}`;
+
+        messageElem.appendChild(timeElem);
+
         messagesDiv.appendChild(messageElem);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
         return isStreaming ? bubble : messageElem;
     }
 
@@ -883,9 +954,17 @@ class ChatBot extends HTMLElement {
         }, 1000);
         console.log('Kết thúc chat với nhân viên.');
         if (this.socket && this.socket.connected) {
-            this.socket.disconnect();
-            this.socket = null
-            console.log("🔌 Socket disconnected");
+            this.socket.emit("client_leave", {
+                reason: "user_closed_tab",
+                sid: this.socket.id
+            }, (response) => {
+                console.log("✅ Server responded:", response);
+                // Sau khi server phản hồi, mới disconnect
+                this.socket.disconnect();
+                this.socket = null
+                console.log("🔌 Socket disconnected");
+            });
+
 
         } else {
             console.warn("⚠️ No active socket connection to disconnect.");
@@ -894,10 +973,11 @@ class ChatBot extends HTMLElement {
         this.currentRoom = null;
     }
 
-    connect(callBackConnect, token) {
+    connect(callBackConnect, visitor_id) {
+        callBackConnect()
         const auth = {};
-        if (token) {
-            auth.token = token;
+        if (visitor_id) {
+            auth.anonymous_token = visitor_id;
         }
 
         this.socket = io(this.socket_url, {
@@ -915,7 +995,6 @@ class ChatBot extends HTMLElement {
         socket.on("connect", () => {
             console.log(`✅ Connected with id ${socket.id}`);
             dom_session_client_id = socket.id;
-            callBackConnect()
         });
 
         socket.on("receive_message", (data) => {
@@ -934,14 +1013,39 @@ class ChatBot extends HTMLElement {
             this.disableSending(false)
             console.log(`Chat accepted. Joined room: ${dom_currentRoom}`);
             this.removeTypingIndicator();
-            this.appendMessage('Noti', `Nhân viên đã kết nối với bạn ở phòng: ${dom_currentRoom || ""}`);
+            if (data?.type == 'reconnect') {
+                this.appendMessage('Noti', data.message);
+            } else {
+                this.appendMessage('Noti', `Nhân viên đã kết nối với bạn ở phòng: ${dom_currentRoom || ""}`);
+            }
+            if (this.socket != null) {
+                console.log("start get get_conversation")
+                this.socket.emit("get_conversation", {})
+            }
+
         });
+        socket.on("client_conversation", (data) => {
+            console.log("client_conversation")
+            let message = this.shadowRoot.querySelector('#messages');  // hoặc #messages nếu cần
+            message.innerHTML = ""
+            let his = data?.history_list || []
+            for (let i = 0; i < his.length; i++) {
+                let item = JSON.parse(his[i])
+                console.log(item)
+                if (item?.role == 'client') {
+                    this.appendMessage('You', `${item.message || ""}`, false, item.timestamp);
+                } else {
+                    this.appendMessage('Bot', `${item.message || ""}`, false, item.timestamp);
+                }
+            }
+
+        })
         socket.on("new_message", (data) => {
             console.log("New message:", data);
             console.log(`New message: ${data?.message || ""}`);
 
             let from = data.from
-            if (from == dom_session_client_id) {
+            if (data.sender_role == 'client' && this.visitor_id == data.anonymous_token) {
                 this.appendMessage('You', `${data.message || ""}`);
             } else {
                 function callback() {
@@ -977,6 +1081,6 @@ class ChatBot extends HTMLElement {
 
 }
 
-customElements.define('chat-bot', ChatBot);
+customElements.define('chat-bot-client', ChatBot);
 
 EOF
